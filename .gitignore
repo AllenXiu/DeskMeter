@@ -1,0 +1,28 @@
+# Conky reference source (downloaded for design comparison only, not part of this project)
+conky-main/
+
+# .NET build artifacts
+bin/
+obj/
+*.user
+*.suo
+
+# Visual Studio
+.vs/
+.vscode/
+.idea/
+
+# Build output
+build/
+dist/
+out/
+
+# Test results
+TestResults/
+*.trx
+coverage/
+
+# OS / editor
+Thumbs.db
+Desktop.ini
+.DS_Store
