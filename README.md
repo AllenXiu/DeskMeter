@@ -3,6 +3,8 @@
 > A Conky-style desktop system monitor for Windows.
 > Lightweight. Transparent. Blends into your wallpaper. No ads, no bloat.
 
+English | [中文](README_zh.md)
+
 ## Features
 
 - **System metrics as plain text** — CPU, per-core, memory, disk, network up/down, uptime, clock, hostname, Windows version — driven by simple `${var}` placeholders, just like Conky
@@ -23,3 +25,7 @@
 - [ ] Future: Linux support (same config format, /proc + lm-sensors data source)
 
 > Non-goals: no Lua, no mouse-interactive skins, no skin marketplace. DeskMeter stays simple on purpose.
+
+## License
+
+Released under the [MIT License](LICENSE).
