@@ -19,12 +19,10 @@ public sealed class WidgetVisual : FrameworkElement
 
     // ---- 渲染资源缓存（NFR-2 内存优化）：Typeface/画笔/FormattedText 复用，
     // 避免每 tick 重复创建（原每元素 2 个 FormattedText，原生字形数据持续累积）----
-    private string _cachedFontFamily = "";
-    private double _cachedFontSize;
-    private Typeface? _cachedTypeface;
     private readonly Dictionary<long, SolidColorBrush> _brushCache = new();
-    private readonly Dictionary<(string Text, byte R, byte G, byte B, double Dpi), FormattedText> _ftCache = new();
+    private readonly Dictionary<(string Text, byte R, byte G, byte B, double Dpi, string Family, double Size), FormattedText> _ftCache = new();
     private const int FtCacheMax = 256; // 有界：静态行长期命中，动态值轮换，原生字形内存封顶
+    private readonly Dictionary<(string Family, double Size), Typeface> _typefaceCache = new();
 
     /// <summary>最近一次重绘的测量尺寸（窗口自适应用）。</summary>
     public Size MeasuredSize => _measured;
@@ -79,8 +77,12 @@ public sealed class WidgetVisual : FrameworkElement
                     switch (element)
                     {
                         case WidgetText text:
-                            w += Measure(text.Text, text.Brush, typeface, _options.FontSize, dpi);
+                        {
+                            var (tf, sz) = ResolveFont(text.Font);
+                            w += Measure(text.Text, text.Brush, tf, sz, dpi);
+                            if (sz > 0 && sz > h) h = sz + 2; // 行内字号影响行高
                             break;
+                        }
                         case WidgetBar bar:
                             if (bar.Width > 0) w += bar.Width;
                             if (bar.Height > h) h = bar.Height;
@@ -92,6 +94,15 @@ public sealed class WidgetVisual : FrameworkElement
                         case WidgetGraph graph:
                             if (graph.Width > 0) w += graph.Width;
                             if (graph.Height > h) h = graph.Height;
+                            break;
+                        case WidgetOffset o:
+                            w += o.N;
+                            break;
+                        case WidgetTab t:
+                            if (t.N > 0) w = (Math.Floor(w / t.N) + 1) * t.N;
+                            break;
+                        case WidgetVOffset v:
+                            if (v.N > 0) h += v.N;
                             break;
                     }
                 }
@@ -130,14 +141,15 @@ public sealed class WidgetVisual : FrameworkElement
                 else
                 {
                     var x = _options.Padding;
+                    var yShift = 0.0;
                     for (var ei = 0; ei < line.Elements.Count; ei++)
                     {
                         switch (line.Elements[ei])
                         {
                             case WidgetText text:
                             {
-                                var ft = GetFormattedText(text.Text, text.Brush, dpi);
-                                dc.DrawText(ft, new Point(x, y));
+                                var ft = GetFormattedText(text.Text, text.Brush, text.Font, dpi);
+                                dc.DrawText(ft, new Point(x, y + yShift));
                                 // 关键：WPF FormattedText.Width 不含尾部空格，
                                 // 必须用 WidthIncludingTrailingWhitespace 才能让字符补齐的列真正占位
                                 x += ft.WidthIncludingTrailingWhitespace;
@@ -148,7 +160,7 @@ public sealed class WidgetVisual : FrameworkElement
                                 // Conky 语义：Width=0 → 填满本行剩余宽度（取整防亚像素矩形）
                                 var w = bar.Width > 0 ? bar.Width : Math.Round(Math.Max(0, widgetWidth - x));
                                 var h = bar.Height;
-                                DrawBar(dc, x, y + (lineHeight - h) / 2, w, h, bar.Brush, bar.Percent);
+                                DrawBar(dc, x, y + yShift + (lineHeight - h) / 2, w, h, bar.Brush, bar.Percent);
                                 x += w;
                                 break;
                             }
@@ -162,10 +174,21 @@ public sealed class WidgetVisual : FrameworkElement
                             {
                                 var gw = graph.Width > 0 ? graph.Width : Math.Max(0, widgetWidth - x);
                                 var gh = graph.Height;
-                                DrawGraph(dc, x, y + (lineHeight - gh) / 2, gw, gh, graph.Brush, graph.Series);
+                                DrawGraph(dc, x, y + yShift + (lineHeight - gh) / 2, gw, gh, graph.Brush, graph.Series,
+                                    graph.MaxOverride, graph.LogScale);
                                 x += gw;
                                 break;
                             }
+                            case WidgetOffset o:
+                                x = Math.Max(_options.Padding, x + o.N);
+                                break;
+                            case WidgetVOffset v:
+                                yShift += v.N;
+                                break;
+                            case WidgetTab t:
+                                if (t.N > 0)
+                                    x = _options.Padding + (Math.Floor((x - _options.Padding) / t.N) + 1) * t.N;
+                                break;
                             case WidgetAlignC:
                             {
                                 // Conky ALIGNC：剩余内容在窗口内容宽度内居中
@@ -225,18 +248,24 @@ public sealed class WidgetVisual : FrameworkElement
     /// 矢量曲线图（设计稿：折线 + 面积渐变填充）：按系列最大值自动缩放，折线为当前色。
     /// </summary>
     private void DrawGraph(DrawingContext dc, double x, double y, double w, double h,
-        WidgetBrush color, IReadOnlyList<double> series)
+        WidgetBrush color, IReadOnlyList<double> series, double? maxOverride = null, bool logScale = false)
     {
         if (w <= 1 || h <= 1 || series.Count == 0) return;
-        var max = Math.Max(series.Max(), 1e-9);
+
+        // 对数刻度（-l）与固定最大值（-m）旗标：变换后统一缩放
+        double Transform(double v) => logScale ? Math.Log10(1 + Math.Max(0, v)) : v;
+        var vals = series.Select(Transform).ToArray();
+        var autoMax = vals.Length > 0 ? vals.Max() : 0;
+        var max = Math.Max(maxOverride.HasValue && maxOverride.Value > 0 ? Transform(maxOverride.Value) : autoMax, 1e-9);
+
         var pen = new Pen(GetBrush(color), 1);
         var areaBrush = ToBrushWithAlpha(color, 0x38);
 
-        var points = new Point[series.Count];
-        for (var i = 0; i < series.Count; i++)
+        var points = new Point[vals.Length];
+        for (var i = 0; i < vals.Length; i++)
         {
-            var px = x + (series.Count == 1 ? 0 : i / (double)(series.Count - 1)) * w;
-            var py = y + h - 1 - Math.Clamp(series[i] / max, 0, 1) * (h - 2);
+            var px = x + (vals.Length == 1 ? 0 : i / (double)(vals.Length - 1)) * w;
+            var py = y + h - 1 - Math.Clamp(vals[i] / max, 0, 1) * (h - 2);
             points[i] = new Point(px, py);
         }
 
@@ -280,8 +309,11 @@ public sealed class WidgetVisual : FrameworkElement
             switch (elements[i])
             {
                 case WidgetText t:
-                    w += Measure(t.Text, t.Brush, typeface, _options.FontSize, dpi);
+                {
+                    var (tf, sz) = ResolveFont(t.Font);
+                    w += Measure(t.Text, t.Brush, tf, sz, dpi);
                     break;
+                }
                 case WidgetBar b when b.Width > 0:
                     w += b.Width;
                     break;
@@ -296,22 +328,27 @@ public sealed class WidgetVisual : FrameworkElement
     private double Measure(string text, WidgetBrush color, Typeface typeface, double size, double dpi)
     {
         // 缓存复用：测量与绘制共用同一 FormattedText，静态行跨 tick 命中
-        var ft = GetFormattedText(text, color, dpi);
+        var ft = GetFormattedText(text, color, null, dpi, typeface, size);
         // 尾部空格必须计入宽度（列对齐依赖字符补齐）
         return ft.WidthIncludingTrailingWhitespace;
     }
 
-    private Typeface GetTypeface()
+    /// <summary>解析行内字体（null = 配置默认）→ (Typeface, 字号)。</summary>
+    private (Typeface Typeface, double Size) ResolveFont(FontSpec? font)
     {
-        if (_cachedTypeface is null || !string.Equals(_cachedFontFamily, _options.FontFamily, StringComparison.Ordinal) ||
-            _cachedFontSize != _options.FontSize)
-        {
-            _cachedTypeface = new Typeface(new FontFamily(_options.FontFamily), FontStyles.Normal,
-                FontWeights.Normal, FontStretches.Normal);
-            _cachedFontFamily = _options.FontFamily;
-            _cachedFontSize = _options.FontSize;
-        }
-        return _cachedTypeface;
+        var family = string.IsNullOrEmpty(font?.Family) ? _options.FontFamily : font.Value.Family;
+        var size = font is { Size: > 0 } ? font.Value.Size : _options.FontSize;
+        return (GetTypeface(family), size);
+    }
+
+    private Typeface GetTypeface(string? family = null)
+    {
+        family ??= _options.FontFamily;
+        var key = (family, _options.FontSize);
+        if (_typefaceCache.TryGetValue(key, out var cached)) return cached;
+        var tf = new Typeface(new FontFamily(family), FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
+        _typefaceCache[key] = tf;
+        return tf;
     }
 
     /// <summary>冻结画笔缓存（按 RGB 复用；冻结后可在 UI 线程反复使用）。</summary>
@@ -326,13 +363,17 @@ public sealed class WidgetVisual : FrameworkElement
     }
 
     /// <summary>FormattedText 缓存：有界（FtCacheMax）；超出时清空重建（静态行每 tick 重新缓存即命中）。</summary>
-    private FormattedText GetFormattedText(string text, WidgetBrush color, double dpi)
+    private FormattedText GetFormattedText(string text, WidgetBrush color, FontSpec? font, double dpi,
+        Typeface? typeface = null, double? size = null)
     {
-        var key = (text, color.R, color.G, color.B, dpi);
+        var family = string.IsNullOrEmpty(font?.Family) ? _options.FontFamily : font.Value.Family;
+        var fs = font is { Size: > 0 } ? font.Value.Size : size ?? _options.FontSize;
+        var tf = typeface ?? GetTypeface(family);
+        var key = (text, color.R, color.G, color.B, dpi, family, fs);
         if (_ftCache.TryGetValue(key, out var cached)) return cached;
         if (_ftCache.Count >= FtCacheMax) _ftCache.Clear();
         var ft = new FormattedText(text, CultureInfo.InvariantCulture, FlowDirection.LeftToRight,
-            _cachedTypeface ?? GetTypeface(), _options.FontSize, GetBrush(color), dpi);
+            tf, fs, GetBrush(color), dpi);
         _ftCache[key] = ft;
         return ft;
     }

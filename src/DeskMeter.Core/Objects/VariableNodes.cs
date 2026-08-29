@@ -11,7 +11,7 @@ public sealed class TextNode : ObjectNode
 
     public TextNode(string text) => _text = text;
 
-    public override void Print(RenderContext ctx) => ctx.Layout.AppendText(_text, ctx.CurrentBrush);
+    public override void Print(RenderContext ctx) => ctx.Layout.AppendText(_text, ctx.CurrentBrush, ctx.CurrentFont);
 }
 
 /// <summary>换行节点（$newline / 文本中的 \n）。规则行后紧跟的换行是空操作（Conky：$hr 已占一行）。</summary>
@@ -46,31 +46,56 @@ public sealed class ColorNode : ObjectNode
     public override void Print(RenderContext ctx) => ctx.CurrentBrush = ColorParser.Parse(_spec, _settings);
 }
 
-/// <summary>行内字体切换（${font ...}）——P0 解析但不改变渲染（P1 支持 bold/italic）。</summary>
+/// <summary>行内字体切换（${font 家族:size=字号}）；无参数恢复配置默认字体。</summary>
 public sealed class FontNode : ObjectNode
 {
-    public override void Print(RenderContext ctx) { }
+    private readonly FontSpec? _font;
+    private readonly bool _reset;
+
+    public FontNode(string[] args)
+    {
+        var spec = args.Length > 0 ? string.Join(" ", args) : string.Empty;
+        _reset = string.IsNullOrWhiteSpace(spec);
+        _font = _reset ? null : FontSpec.Parse(spec);
+    }
+
+    public override void Print(RenderContext ctx) => ctx.CurrentFont = _reset ? null : _font;
 }
 
 /// <summary>
-/// ${scroll N ...}：Conky 语义——[left|right|wait] 长度 [步长] [间隔] 文本；
-/// 文本超过长度时前缀补空格向左滚动（默认），每次刷新前进 step 字符，到尾回绕。
+/// ${scroll [left|right|wait] 长度 [步长] [间隔] 文本}：
+/// 文本超过长度时滚动显示。left = 前缀补空格向左滚动（默认）；right = 从尾部向右滚入；
+/// wait = 向左滚动到尾后停留一段时间再回绕。step 每次刷新前进字符数，interval 每 N 次刷新前进一次。
 /// </summary>
 public sealed class ScrollNode : ObjectNode
 {
     private readonly List<ObjectNode> _nodes;
     private readonly int _show;
     private readonly int _step;
+    private readonly int _interval;
+    private readonly bool _right;
+    private readonly bool _wait;
     private int _start;
+    private int _framesSinceStep;
+    private int _waitFrames;
 
     public ScrollNode(string[] args, ObjectRegistry registry, ConfigSettings settings)
     {
         _step = 1;
+        _interval = 1;
         var i = 0;
-        if (args.Length > 0 && args[0] is "left" or "l") i = 1;
-        else if (args.Length > 0 && args[0] is "right" or "r" or "wait" or "w")
+        if (args.Length > 0 && args[0] is "right" or "r")
         {
-            // 右向/等待 P1 简化：按左向处理（默认方向与官方配置一致）
+            _right = true;
+            i = 1;
+        }
+        else if (args.Length > 0 && args[0] is "wait" or "w")
+        {
+            _wait = true;
+            i = 1;
+        }
+        else if (args.Length > 0 && args[0] is "left" or "l")
+        {
             i = 1;
         }
         _show = i < args.Length && int.TryParse(args[i], out var show) ? Math.Max(1, show) : 32;
@@ -80,7 +105,11 @@ public sealed class ScrollNode : ObjectNode
         {
             _step = Math.Max(1, step);
             i++;
-            if (i < args.Length && int.TryParse(args[i], out _)) i++;
+            if (i < args.Length && int.TryParse(args[i], out var interval) && interval > 0)
+            {
+                _interval = interval;
+                i++;
+            }
         }
         var text = string.Join(" ", args[i..]);
         _nodes = ConkyTextParser.Parse(text, registry, settings);
@@ -98,16 +127,38 @@ public sealed class ScrollNode : ObjectNode
         // 2) 文本不超过长度 → 静态显示
         if (full.Length <= _show)
         {
-            ctx.Layout.AppendText(full, ctx.CurrentBrush);
+            ctx.Layout.AppendText(full, ctx.CurrentBrush, ctx.CurrentFont);
             return;
         }
 
-        // 3) 前缀补 _show 个空格，窗口左移
-        var padded = new string(' ', _show) + full;
-        _start += _step;
-        if (_start >= padded.Length) _start = 0;
+        // 3) 左右滚动：left = 前缀补空格（内容从右入）；right = 后缀补空格（内容从右出、尾部先见）
+        var padded = _right ? full + new string(' ', _show) : new string(' ', _show) + full;
+
+        if (++_framesSinceStep >= _interval)
+        {
+            _framesSinceStep = 0;
+            var maxStart = padded.Length - _show;
+            if (_wait)
+            {
+                // 到尾停留 _show 帧后回绕
+                if (_start >= maxStart)
+                {
+                    if (++_waitFrames >= _show) { _start = 0; _waitFrames = 0; }
+                }
+                else
+                {
+                    _start = Math.Min(maxStart, _start + _step);
+                }
+            }
+            else
+            {
+                _start += _step;
+                if (_start >= padded.Length) _start = 0;
+            }
+        }
+
         var len = Math.Min(_show, padded.Length - _start);
-        ctx.Layout.AppendText(padded.Substring(_start, len), ctx.CurrentBrush);
+        ctx.Layout.AppendText(padded.Substring(_start, len), ctx.CurrentBrush, ctx.CurrentFont);
     }
 }
 
@@ -156,7 +207,7 @@ public sealed class ExecNode : ObjectNode
                 _lastStart = DateTime.UtcNow;
                 _ = RunAsync();
             }
-            ctx.Layout.AppendText(_output ?? Placeholder, ctx.CurrentBrush);
+            ctx.Layout.AppendText(_output ?? Placeholder, ctx.CurrentBrush, ctx.CurrentFont);
         }
     }
 
@@ -200,7 +251,7 @@ public sealed class ExecNode : ObjectNode
     }
 }
 
-/// <summary>布局对象（alignc/alignr/goto/offset/voffset/tab）——P0 实现空白近似，P1 行级排版。</summary>
+/// <summary>布局对象（alignc/alignr/goto/offset/voffset/tab）——像素语义由渲染层处理，console 忽略。</summary>
 public sealed class LayoutNode : ObjectNode
 {
     private readonly string _kind;
@@ -227,18 +278,18 @@ public sealed class LayoutNode : ObjectNode
                 ctx.Layout.AppendAlignR(_n);
                 break;
             case "offset":
-                // offset 为像素相对偏移；P0 用空格近似，P1 改为像素元素
-                if (_n > 0) ctx.Layout.AppendText(new string(' ', _n), ctx.CurrentBrush);
+                // offset = 像素相对偏移（可为负向左），由渲染层移动绘制位置
+                ctx.Layout.AppendOffset(_n);
+                break;
+            case "voffset":
+                // voffset = 像素垂直偏移，本行后续内容下移
+                ctx.Layout.AppendVOffset(_n);
                 break;
             case "tab":
-                if (_n > 0)
-                {
-                    var width = ctx.Layout.CurrentLine.PlainText.Length;
-                    var pad = _n - width % _n;
-                    ctx.Layout.AppendText(new string(' ', pad), ctx.CurrentBrush);
-                }
+                // tab = 像素制表位：前进到下一个 N 像素整倍列（渲染层处理）
+                ctx.Layout.AppendTab(_n);
                 break;
-            // alignc / alignr / voffset：P1 行级排版
+            // alignc / alignr：行级排版由渲染层处理
         }
     }
 }
@@ -251,7 +302,7 @@ public sealed class UnknownVariableNode : ObjectNode
 
     public UnknownVariableNode(string name) => _name = name;
 
-    public override void Print(RenderContext ctx) => ctx.Layout.AppendText(Placeholder, ctx.CurrentBrush);
+    public override void Print(RenderContext ctx) => ctx.Layout.AppendText(Placeholder, ctx.CurrentBrush, ctx.CurrentFont);
 }
 
 /// <summary>
@@ -313,6 +364,11 @@ public sealed class GraphNode : ObjectNode
     private readonly Func<SystemSnapshot, double> _value;
     private readonly double _height;
     private readonly double _width;
+    private readonly double _yScale = 1;
+    private readonly double? _maxOverride;
+    private readonly bool _logScale;
+    private readonly int _interval = 1;
+    private int _sampleCounter;
     private readonly double[] _samples = new double[MaxSamples];
     private int _count;
 
@@ -322,7 +378,35 @@ public sealed class GraphNode : ObjectNode
         _value = value;
         var defaultHeight = settings.GetNumber("default_graph_height", 25);
         var defaultWidth = settings.GetNumber("default_graph_width", 0);
-        ParseHeightWidth(args, out var h, out var w);
+
+        // 旗标：-l 对数、-m <max> 固定最大值、-i <interval> 采样间隔、-y <scale> 纵轴倍率、-t/-x 解析忽略
+        var rest = new List<string>();
+        for (var i = 0; i < args.Length; i++)
+        {
+            switch (args[i])
+            {
+                case "-l": _logScale = true; break;
+                case "-t": break;
+                case "-m" when i + 1 < args.Length && double.TryParse(args[++i],
+                    System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var m) && m > 0:
+                    _maxOverride = m;
+                    break;
+                case "-i" when i + 1 < args.Length && int.TryParse(args[++i], out var iv) && iv > 0:
+                    _interval = iv;
+                    break;
+                case "-y" when i + 1 < args.Length && double.TryParse(args[++i],
+                    System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var ys) && ys > 0:
+                    _yScale = ys;
+                    break;
+                case "-x" when i + 1 < args.Length:
+                    i++; // X 轴倍率：简化忽略
+                    break;
+                default:
+                    rest.Add(args[i]);
+                    break;
+            }
+        }
+        ParseHeightWidth(rest.ToArray(), out var h, out var w);
         _height = h > 0 ? h : defaultHeight;
         _width = w > 0 ? w : defaultWidth;
     }
@@ -348,20 +432,23 @@ public sealed class GraphNode : ObjectNode
 
     public override void Print(RenderContext ctx)
     {
-        var v = _value(ctx.Data);
-        if (_count < MaxSamples)
+        if (_sampleCounter++ % _interval == 0)
         {
-            _samples[_count++] = v;
-        }
-        else
-        {
-            Array.Copy(_samples, 1, _samples, 0, MaxSamples - 1);
-            _samples[MaxSamples - 1] = v;
+            var v = _value(ctx.Data) * _yScale;
+            if (_count < MaxSamples)
+            {
+                _samples[_count++] = v;
+            }
+            else
+            {
+                Array.Copy(_samples, 1, _samples, 0, MaxSamples - 1);
+                _samples[MaxSamples - 1] = v;
+            }
         }
 
         var series = new double[_count];
         Array.Copy(_samples, series, _count);
-        ctx.Layout.AppendGraph(series, ctx.CurrentBrush, _height, _width);
+        ctx.Layout.AppendGraph(series, ctx.CurrentBrush, _height, _width, _maxOverride, _logScale);
     }
 }
 
@@ -381,6 +468,6 @@ public sealed class VariableNode : ObjectNode
     public override void Print(RenderContext ctx)
     {
         var value = VariableEvaluator.Evaluate(_name, _args, ctx.Data, ctx.Settings);
-        ctx.Layout.AppendText(value ?? Placeholder, ctx.CurrentBrush);
+        ctx.Layout.AppendText(value ?? Placeholder, ctx.CurrentBrush, ctx.CurrentFont);
     }
 }

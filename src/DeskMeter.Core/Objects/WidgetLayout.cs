@@ -22,22 +22,48 @@ public readonly record struct WidgetBrush(byte R, byte G, byte B)
     }
 }
 
+/// <summary>行内字体规格（Conky ${font 家族:size=字号}）。null/默认由渲染层使用配置字体。</summary>
+public readonly record struct FontSpec(string Family, double Size)
+{
+    /// <summary>解析 "Family" 或 "Family:size=12"（忽略 bold/italic 等其余段）。</summary>
+    public static FontSpec? Parse(string? spec)
+    {
+        if (string.IsNullOrWhiteSpace(spec)) return null;
+        var parts = spec.Split(':', StringSplitOptions.RemoveEmptyEntries);
+        var family = parts[0].Trim();
+        if (family.Length == 0) return null;
+        double size = 0;
+        foreach (var p in parts.Skip(1))
+        {
+            var kv = p.Trim().Split('=', StringSplitOptions.RemoveEmptyEntries);
+            if (kv.Length == 2 && kv[0].Trim().Equals("size", StringComparison.OrdinalIgnoreCase) &&
+                double.TryParse(kv[1].Trim(), NumberStyles.Any, CultureInfo.InvariantCulture, out var s) && s > 0)
+                size = s;
+        }
+        return new FontSpec(family, size);
+    }
+}
+
 /// <summary>一行中的元素基类（文本或矢量 Bar）。</summary>
 public abstract class WidgetElement
 {
 }
 
-/// <summary>文本元素。</summary>
+/// <summary>文本元素（可携带行内字体，null = 使用配置字体）。</summary>
 public sealed class WidgetText : WidgetElement
 {
-    public WidgetText(string text, WidgetBrush brush)
+    public WidgetText(string text, WidgetBrush brush, FontSpec? font = null)
     {
         Text = text;
         Brush = brush;
+        Font = font;
     }
 
     public string Text { get; }
     public WidgetBrush Brush { get; }
+
+    /// <summary>行内字体（${font ...} 设置）；null = 配置默认字体。</summary>
+    public FontSpec? Font { get; }
 }
 
 /// <summary>
@@ -72,12 +98,15 @@ public sealed class WidgetBar : WidgetElement
 /// </summary>
 public sealed class WidgetGraph : WidgetElement
 {
-    public WidgetGraph(IReadOnlyList<double> series, WidgetBrush brush, double height, double width)
+    public WidgetGraph(IReadOnlyList<double> series, WidgetBrush brush, double height, double width,
+        double? maxOverride = null, bool logScale = false)
     {
         Series = series;
         Brush = brush;
         Height = height;
         Width = width;
+        MaxOverride = maxOverride;
+        LogScale = logScale;
     }
 
     /// <summary>采样序列（旧→新，FR-VIZ-2 默认最近 80 点）。</summary>
@@ -90,6 +119,12 @@ public sealed class WidgetGraph : WidgetElement
 
     /// <summary>像素宽度；0 = 填满本行剩余宽度。</summary>
     public double Width { get; }
+
+    /// <summary>-m 旗标：固定最大值（0/空 = 按系列自动缩放）。</summary>
+    public double? MaxOverride { get; }
+
+    /// <summary>-l 旗标：对数刻度（log1p 变换）。</summary>
+    public bool LogScale { get; }
 }
 
 /// <summary>${alignc}：把本行剩余内容水平居中（相对窗口内容宽度，Conky ALIGNC 语义）。</summary>
@@ -121,6 +156,39 @@ public sealed class WidgetGoto : WidgetElement
     public double X { get; }
 }
 
+/// <summary>${offset N}：当前绘制位置向右偏移 N 像素（可为负 = 向左）。</summary>
+public sealed class WidgetOffset : WidgetElement
+{
+    public WidgetOffset(double n)
+    {
+        N = n;
+    }
+
+    public double N { get; }
+}
+
+/// <summary>${voffset N}：本行后续内容垂直偏移 N 像素（为正向下）。</summary>
+public sealed class WidgetVOffset : WidgetElement
+{
+    public WidgetVOffset(double n)
+    {
+        N = n;
+    }
+
+    public double N { get; }
+}
+
+/// <summary>${tab N}：制表位——前进到下一个 N 像素整倍列（相对文本区左缘）。</summary>
+public sealed class WidgetTab : WidgetElement
+{
+    public WidgetTab(double n)
+    {
+        N = n;
+    }
+
+    public double N { get; }
+}
+
 /// <summary>小部件的一行：普通文本行或水平分隔线。</summary>
 public sealed class WidgetLine
 {
@@ -149,12 +217,12 @@ public sealed class WidgetLayout
         return line;
     }
 
-    public void AppendText(string text, WidgetBrush brush)
+    public void AppendText(string text, WidgetBrush brush, FontSpec? font = null)
     {
         if (string.IsNullOrEmpty(text)) return;
         var line = CurrentLine;
         if (line.IsRule) line = NewLine();
-        line.Elements.Add(new WidgetText(text, brush));
+        line.Elements.Add(new WidgetText(text, brush, font));
     }
 
     public void AppendBar(double percent, WidgetBrush brush, double height, double width)
@@ -171,11 +239,33 @@ public sealed class WidgetLayout
         line.Elements.Add(new WidgetGoto(x));
     }
 
-    public void AppendGraph(IReadOnlyList<double> series, WidgetBrush brush, double height, double width)
+    public void AppendGraph(IReadOnlyList<double> series, WidgetBrush brush, double height, double width,
+        double? maxOverride = null, bool logScale = false)
     {
         var line = CurrentLine;
         if (line.IsRule) line = NewLine();
-        line.Elements.Add(new WidgetGraph(series, brush, height, width));
+        line.Elements.Add(new WidgetGraph(series, brush, height, width, maxOverride, logScale));
+    }
+
+    public void AppendOffset(double n)
+    {
+        var line = CurrentLine;
+        if (line.IsRule) line = NewLine();
+        line.Elements.Add(new WidgetOffset(n));
+    }
+
+    public void AppendVOffset(double n)
+    {
+        var line = CurrentLine;
+        if (line.IsRule) line = NewLine();
+        line.Elements.Add(new WidgetVOffset(n));
+    }
+
+    public void AppendTab(double n)
+    {
+        var line = CurrentLine;
+        if (line.IsRule) line = NewLine();
+        line.Elements.Add(new WidgetTab(n));
     }
 
     public void AppendAlignC()
@@ -237,7 +327,10 @@ public sealed class WidgetLayout
                             sb.Append(new string('.', chars - fill));
                             break;
                         case WidgetGoto:
-                            // Conky console 后端忽略 goto（仅 GUI 生效）
+                        case WidgetOffset:
+                        case WidgetVOffset:
+                        case WidgetTab:
+                            // Conky console 后端忽略像素定位元素（仅 GUI 生效）
                             break;
                         case WidgetGraph graph:
                             sb.Append(GraphToTicks(graph));
@@ -262,18 +355,21 @@ public sealed class WidgetLayout
     {
         if (graph.Series.Count == 0) return string.Empty;
         var ticks = new[] { ' ', ',', '_', '=', '#' };
-        var max = Math.Max(graph.Series.Max(), 1e-9);
+        var vals = graph.Series.Select(Transform).ToArray();
+        var max = Math.Max(graph.MaxOverride ?? 0, vals.Max());
         var cols = graph.Width > 0
             ? Math.Clamp((int)Math.Round(graph.Width / 12.0), 4, 80)
             : 40;
-        var start = Math.Max(0, graph.Series.Count - cols);
+        var start = Math.Max(0, vals.Length - cols);
         var sb = new System.Text.StringBuilder();
-        for (var i = start; i < graph.Series.Count; i++)
+        for (var i = start; i < vals.Length; i++)
         {
-            var norm = graph.Series[i] / max;
+            var norm = max > 0 ? vals[i] / max : 0;
             var idx = Math.Clamp((int)(norm * (ticks.Length - 1)), 0, ticks.Length - 1);
             sb.Append(ticks[idx]);
         }
         return sb.ToString();
+
+        double Transform(double v) => graph.LogScale ? Math.Log10(1 + v) : v;
     }
 }

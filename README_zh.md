@@ -33,7 +33,7 @@
 - [x] P0：文本变量、透明桌面窗口、conky.conf 解析、定时刷新
 - [x] P1：矢量进度条与曲线图、颜色、`${exec}`、热重载、布局对象
 - [x] P2：温度（LibreHardwareMonitor）、进程 Top 榜、托盘、开机自启、多显示器、多配置管理（替代已取消的"主题"）、设置界面
-- [ ] 边界项：行内 `${font}`、scroll right/wait、graph 旗标、offset/voffset/tab 像素语义
+- [x] 边界项：行内 `${font}`、scroll right/wait、graph 旗标（-l/-m/-i/-y）、offset/voffset/tab 像素语义
 - [ ] 未来：Linux 支持（同一配置格式，/proc + lm-sensors 数据源）
 
 > 非目标：不支持 Lua 绘图脚本、不支持鼠标交互皮肤、不做皮肤市场。DeskMeter 有意保持简洁。

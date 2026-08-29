@@ -35,7 +35,7 @@ DeskMeter 兼容 Conky 的 `conky.text` 语法：`$name` 与 `${name args}` 两�
 | `$cpu` | CPU 总占用 % | ✅ |
 | `${cpu N}` | 第 N 个核心占用 %（PerformanceCounter 每核，失败回退总占用） | ✅ |
 | `${cpubar 高度[,宽度]}` | CPU 占用矢量进度条（宽度省略=填满剩余行宽） | ✅ |
-| `${cpugraph 高度[,宽度]}` | CPU 曲线图（环形缓冲 80 点，按系列最大值缩放） | ✅ |
+| `${cpugraph [旗标] 高度[,宽度]}` | CPU 曲线图（环形缓冲 80 点；旗标 -l 对数刻度、-m 固定最大值、-i 采样间隔、-y 纵轴倍率；-t/-x 解析忽略） | ✅ |
 | `$freq` | CPU 频率 MHz | ✅ |
 | `$freq_g` | CPU 频率 GHz（2 位小数） | ✅ |
 
@@ -68,7 +68,7 @@ DeskMeter 兼容 Conky 的 `conky.text` 语法：`$name` 与 `${name args}` 两�
 | `$downspeed` / `$upspeed` | 当前下载 / 上传速率（GiB/MiB/KiB/B + /s） | ✅ |
 | `$downspeedf` / `$upspeedf` | 速率浮点数（B/s） | ✅ |
 | `$totaldown` / `$totalup` | 累计下载 / 上传总量 | ✅ |
-| `${downspeedgraph 高度[,宽度]}` / `${upspeedgraph ...}` | 下载 / 上传速率曲线图 | ✅ |
+| `${downspeedgraph [旗标] 高度[,宽度]}` / `${upspeedgraph ...}` | 下载 / 上传速率曲线图（同 cpugraph 旗标） | ✅ |
 
 ## 7. 进程（3）
 
@@ -104,11 +104,11 @@ DeskMeter 兼容 Conky 的 `conky.text` 语法：`$name` 与 `${name args}` 两�
 |---|---|---|
 | `$hr` | 分隔线（本行） | ✅ |
 | `$newline` | 强制换行 | ✅ |
-| `${scroll 长度 [步长] [间隔] 文本}` | 文本滚动（左向，前缀补空格、到尾回绕） | ⚠️ right/wait 方向按左向简化 |
+| `${scroll [left|right|wait] 长度 [步长] [间隔] 文本}` | 文本滚动：left 左向（默认）、right 从尾部向右滚入、wait 到尾停留后回绕；step 步长、interval 每 N 次刷新前进 | ✅ |
 | `${goto N}` | 水平绝对定位（像素，计入行宽） | ✅ |
 | `${alignc}` / `${alignr N}` | 行内居中 / 右对齐 | ✅ |
-| `${offset N}` / `${voffset N}` / `${tab N}` | 偏移 / 垂直偏移 / 制表位 | ⚠️ 当前为空格/近似实现 |
-| `${font 字体}` | 切换字体 | ⚠️ 行内切换解析但不生效（全局用配置 font） |
+| `${offset N}` / `${voffset N}` / `${tab N}` | 像素偏移 / 垂直偏移 / 像素制表位（可为负） | ✅ |
+| `${font 家族:size=字号}` | 行内切换字体与字号（无参数恢复配置默认） | ✅ |
 
 ## 11. 颜色（11）
 

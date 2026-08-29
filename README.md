@@ -33,7 +33,7 @@ English | [中文](README_zh.md)
 - [x] P0: text variables, transparent desktop window, conky.conf parsing, timed refresh
 - [x] P1: vector bars & graphs, colors, `${exec}` / `${execpi}`, hot reload, layout objects
 - [x] P2: temperature (LibreHardwareMonitor), top processes, tray icon, autostart, multi-monitor, multi-config management (replaces the cancelled "themes"), settings UI
-- [ ] Edge cases: inline `${font}`, scroll right/wait, graph flags, offset/voffset/tab pixel semantics
+- [x] Edge cases: inline `${font}`, scroll right/wait, graph flags (-l/-m/-i/-y), offset/voffset/tab pixel semantics
 - [ ] Future: cross-platform (renderer is abstracted; Avalonia migration if ever needed)
 
 > Non-goals: no Lua drawing scripts, no interactive skins, no skin marketplace. Full Lua config execution (MoonSharp) is supported — DeskMeter stays simple on purpose.

@@ -16,7 +16,7 @@ public sealed class ObjectRegistry
         Register("hr", (_, _) => new RuleNode());
         Register("newline", (_, _) => new NewlineNode());
         Register("scroll", (args, settings) => new ScrollNode(args, this, settings));
-        Register("font", (_, _) => new FontNode());
+        Register("font", (args, _) => new FontNode(args));
         Register("alignc", (_, _) => new LayoutNode("alignc", 0));
         Register("alignr", (args, _) => new LayoutNode("alignr", ParseInt(Arg(args, 0), 0)));
         Register("goto", (args, _) => new LayoutNode("goto", ParseInt(Arg(args, 0), 0)));

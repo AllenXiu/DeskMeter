@@ -22,6 +22,9 @@ public sealed class RenderContext
 
     /// <summary>当前文字颜色（颜色变量修改，换行不重置——与 Conky 行为一致）。</summary>
     public WidgetBrush CurrentBrush { get; set; }
+
+    /// <summary>当前行内字体（${font ...} 设置；null = 配置默认字体，换行不重置——与 Conky 行为一致）。</summary>
+    public FontSpec? CurrentFont { get; set; }
 }
 
 /// <summary>
