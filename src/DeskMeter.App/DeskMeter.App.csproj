@@ -10,6 +10,11 @@
     <AssemblyName>DeskMeter</AssemblyName>
     <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>
+  <!-- NFR-2 内存 <100MB：限制托管堆硬上限（32MB，实际稳态 gcHeap 仅 2-3MB，10 倍余量），
+       阻止 1Hz 刷新产生的垃圾导致堆段无限增长；GC 更频繁但堆小、开销可忽略 -->
+  <ItemGroup>
+    <RuntimeHostConfigurationOption Include="System.GC.HeapHardLimit" Value="33554432" />
+  </ItemGroup>
   <!-- WPF + WinForms 混用：移除隐式 using，消除 Application/Color 等二义（需处显式 using） -->
   <ItemGroup>
     <Using Remove="System.Windows.Forms" />

@@ -17,6 +17,15 @@ public sealed class WidgetVisual : FrameworkElement
     private Size _measured;
     private double _stableWidth; // 宽度只增不减（防内容变化导致窗口抖动）
 
+    // ---- 渲染资源缓存（NFR-2 内存优化）：Typeface/画笔/FormattedText 复用，
+    // 避免每 tick 重复创建（原每元素 2 个 FormattedText，原生字形数据持续累积）----
+    private string _cachedFontFamily = "";
+    private double _cachedFontSize;
+    private Typeface? _cachedTypeface;
+    private readonly Dictionary<long, SolidColorBrush> _brushCache = new();
+    private readonly Dictionary<(string Text, byte R, byte G, byte B, double Dpi), FormattedText> _ftCache = new();
+    private const int FtCacheMax = 256; // 有界：静态行长期命中，动态值轮换，原生字形内存封顶
+
     /// <summary>最近一次重绘的测量尺寸（窗口自适应用）。</summary>
     public Size MeasuredSize => _measured;
 
@@ -49,11 +58,10 @@ public sealed class WidgetVisual : FrameworkElement
         if (_layout is null) return;
 
         var dpi = VisualTreeHelper.GetDpi(this).PixelsPerDip;
-        var typeface = new Typeface(new FontFamily(_options.FontFamily), FontStyles.Normal,
-            FontWeights.Normal, FontStretches.Normal);
-        var brush = ToBrush(_options.DefaultBrush);
+        var typeface = GetTypeface();
+        var brush = GetBrush(_options.DefaultBrush);
 
-        var fontHeight = Measure("Ag", typeface, _options.FontSize, dpi);
+        var fontHeight = Measure("Ag", _options.DefaultBrush, typeface, _options.FontSize, dpi);
 
         // 第一遍：测量每行宽度与行高（bar 显式宽度计入；Width=0 的行按剩余宽度绘制）
         var lineWidths = new double[_layout.Lines.Count];
@@ -71,7 +79,7 @@ public sealed class WidgetVisual : FrameworkElement
                     switch (element)
                     {
                         case WidgetText text:
-                            w += Measure(text.Text, typeface, _options.FontSize, dpi);
+                            w += Measure(text.Text, text.Brush, typeface, _options.FontSize, dpi);
                             break;
                         case WidgetBar bar:
                             if (bar.Width > 0) w += bar.Width;
@@ -114,7 +122,7 @@ public sealed class WidgetVisual : FrameworkElement
                 var lineHeight = lineHeights[i];
                 if (line.IsRule)
                 {
-                    var ruleBrush = line.RuleBrush is { } rb ? ToBrush(rb) : brush;
+                    var ruleBrush = line.RuleBrush is { } rb ? GetBrush(rb) : brush;
                     var pen = new Pen(ruleBrush, 1);
                     dc.DrawLine(pen, new Point(_options.Padding, y + lineHeight / 2),
                         new Point(_options.Padding + Math.Max(widgetWidth, _options.Padding * 2), y + lineHeight / 2));
@@ -128,8 +136,7 @@ public sealed class WidgetVisual : FrameworkElement
                         {
                             case WidgetText text:
                             {
-                                var ft = new FormattedText(text.Text, CultureInfo.InvariantCulture,
-                                    FlowDirection.LeftToRight, typeface, _options.FontSize, ToBrush(text.Brush), dpi);
+                                var ft = GetFormattedText(text.Text, text.Brush, dpi);
                                 dc.DrawText(ft, new Point(x, y));
                                 // 关键：WPF FormattedText.Width 不含尾部空格，
                                 // 必须用 WidthIncludingTrailingWhitespace 才能让字符补齐的列真正占位
@@ -195,12 +202,12 @@ public sealed class WidgetVisual : FrameworkElement
     /// <summary>
     /// 矢量进度条（Conky draw_rect + fill_rect 语义）：当前色 1px 圆角描边 + 按百分比填充。
     /// </summary>
-    private static void DrawBar(DrawingContext dc, double x, double y, double w, double h,
+    private void DrawBar(DrawingContext dc, double x, double y, double w, double h,
         WidgetBrush color, double percent)
     {
         // 尺寸守卫：任何非正尺寸都会让 DrawRoundedRectangle 抛异常（曾导致绘制中断/内容残缺）
         if (w <= 0 || h <= 0) return;
-        var fillBrush = ToBrush(color);
+        var fillBrush = GetBrush(color);
         var pen = new Pen(fillBrush, 1);
         var radius = Math.Min(3, h / 2);
 
@@ -217,12 +224,12 @@ public sealed class WidgetVisual : FrameworkElement
     /// <summary>
     /// 矢量曲线图（设计稿：折线 + 面积渐变填充）：按系列最大值自动缩放，折线为当前色。
     /// </summary>
-    private static void DrawGraph(DrawingContext dc, double x, double y, double w, double h,
+    private void DrawGraph(DrawingContext dc, double x, double y, double w, double h,
         WidgetBrush color, IReadOnlyList<double> series)
     {
         if (w <= 1 || h <= 1 || series.Count == 0) return;
         var max = Math.Max(series.Max(), 1e-9);
-        var pen = new Pen(ToBrush(color), 1);
+        var pen = new Pen(GetBrush(color), 1);
         var areaBrush = ToBrushWithAlpha(color, 0x38);
 
         var points = new Point[series.Count];
@@ -273,7 +280,7 @@ public sealed class WidgetVisual : FrameworkElement
             switch (elements[i])
             {
                 case WidgetText t:
-                    w += Measure(t.Text, typeface, _options.FontSize, dpi);
+                    w += Measure(t.Text, t.Brush, typeface, _options.FontSize, dpi);
                     break;
                 case WidgetBar b when b.Width > 0:
                     w += b.Width;
@@ -286,18 +293,47 @@ public sealed class WidgetVisual : FrameworkElement
         return w;
     }
 
-    private static double Measure(string text, Typeface typeface, double size, double dpi)
+    private double Measure(string text, WidgetBrush color, Typeface typeface, double size, double dpi)
     {
-        var ft = new FormattedText(text, CultureInfo.InvariantCulture, FlowDirection.LeftToRight,
-            typeface, size, Brushes.Black, dpi);
+        // 缓存复用：测量与绘制共用同一 FormattedText，静态行跨 tick 命中
+        var ft = GetFormattedText(text, color, dpi);
         // 尾部空格必须计入宽度（列对齐依赖字符补齐）
         return ft.WidthIncludingTrailingWhitespace;
     }
 
-    private static SolidColorBrush ToBrush(WidgetBrush b)
+    private Typeface GetTypeface()
     {
+        if (_cachedTypeface is null || !string.Equals(_cachedFontFamily, _options.FontFamily, StringComparison.Ordinal) ||
+            _cachedFontSize != _options.FontSize)
+        {
+            _cachedTypeface = new Typeface(new FontFamily(_options.FontFamily), FontStyles.Normal,
+                FontWeights.Normal, FontStretches.Normal);
+            _cachedFontFamily = _options.FontFamily;
+            _cachedFontSize = _options.FontSize;
+        }
+        return _cachedTypeface;
+    }
+
+    /// <summary>冻结画笔缓存（按 RGB 复用；冻结后可在 UI 线程反复使用）。</summary>
+    private SolidColorBrush GetBrush(WidgetBrush b)
+    {
+        var key = ((long)b.R << 16) | ((long)b.G << 8) | b.B;
+        if (_brushCache.TryGetValue(key, out var cached)) return cached;
         var brush = new SolidColorBrush(Color.FromRgb(b.R, b.G, b.B));
         brush.Freeze();
+        _brushCache[key] = brush;
         return brush;
+    }
+
+    /// <summary>FormattedText 缓存：有界（FtCacheMax）；超出时清空重建（静态行每 tick 重新缓存即命中）。</summary>
+    private FormattedText GetFormattedText(string text, WidgetBrush color, double dpi)
+    {
+        var key = (text, color.R, color.G, color.B, dpi);
+        if (_ftCache.TryGetValue(key, out var cached)) return cached;
+        if (_ftCache.Count >= FtCacheMax) _ftCache.Clear();
+        var ft = new FormattedText(text, CultureInfo.InvariantCulture, FlowDirection.LeftToRight,
+            _cachedTypeface ?? GetTypeface(), _options.FontSize, GetBrush(color), dpi);
+        _ftCache[key] = ft;
+        return ft;
     }
 }

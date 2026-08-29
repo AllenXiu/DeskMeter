@@ -46,6 +46,27 @@ internal static class Program
             timer.Start();
         }
 
+        // --mem-info：NFR-2 内存诊断（每 10s 采样，60s 后退出）
+        if (options.MemInfo)
+        {
+            var ticks = 0;
+            var memTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(10) };
+            memTimer.Tick += (_, _) =>
+            {
+                ticks++;
+                var proc = System.Diagnostics.Process.GetCurrentProcess();
+                proc.Refresh();
+                System.GC.Collect();
+                System.GC.WaitForPendingFinalizers();
+                System.GC.Collect();
+                Console.WriteLine($"[mem {ticks * 10}s] workingSet={proc.WorkingSet64 / 1024 / 1024}MB " +
+                    $"private={proc.PrivateMemorySize64 / 1024 / 1024}MB gcHeap={System.GC.GetTotalMemory(false) / 1024 / 1024}MB " +
+                    $"serverGc={System.Runtime.GCSettings.IsServerGC} modules={proc.Modules.Count}");
+                if (ticks >= 6) { memTimer.Stop(); window.Close(); }
+            };
+            memTimer.Start();
+        }
+
         // 系统托盘（P2）：配置▶ / 设置… / 编辑配置… / 刷新 / 开机自启 / 退出
         using var tray = new TrayIcon(window, configPath, configManager);
 

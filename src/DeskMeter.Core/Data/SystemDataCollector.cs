@@ -17,6 +17,10 @@ public sealed class SystemDataCollector : IDisposable
     private long _prevNetRecv, _prevNetSent;
     private DateTime _prevNetTime;
     private bool _netInited;
+    private NetworkInterface? _netInterface; // 缓存复用：每 tick 不再重新枚举网络接口（原生缓冲不再累积）
+    private int _netRescanCounter;
+    private IReadOnlyList<string>? _driveRoots; // 磁盘根缓存：60 tick 重扫一次
+    private int _driveRescanCounter;
     private string? _freqCache;
     private string? _osNameCache;
     private string? _kernelCache;
@@ -41,7 +45,9 @@ public sealed class SystemDataCollector : IDisposable
         var (recv, sent) = GetNetTotals();
         var speed = GetNetSpeed(recv, sent, now);
         var (memUsed, memTotal, swapUsed, swapTotal) = GetMemory();
-        var (topCpu, topMem) = GetTopProcesses(10, memTotal);
+        // 进程数据每 tick 只枚举一次（计数 + 运行数 + top 榜共用），并全部 Dispose 防止句柄/内存泄漏
+        var procSnap = CollectProcesses(DateTime.UtcNow, memTotal);
+        var (topCpu, topMem) = GetTopProcesses(procSnap.Items, 10);
 
         var snap = new SystemSnapshot
         {
@@ -51,8 +57,8 @@ public sealed class SystemDataCollector : IDisposable
             SwapUsedBytes = swapUsed,
             SwapTotalBytes = swapTotal,
             CpuFrequencyMhz = GetCpuFrequencyMhz(),
-            ProcessCount = GetProcessCount(),
-            RunningProcessCount = GetRunningProcessCount(),
+            ProcessCount = procSnap.Count,
+            RunningProcessCount = procSnap.RunningCount,
             TotalUpBytes = sent,
             TotalDownBytes = recv,
             UpSpeedBytesPerSec = speed.up,
@@ -172,19 +178,24 @@ public sealed class SystemDataCollector : IDisposable
 
     // ---- 磁盘 ----
 
-    private static IEnumerable<string> GetDriveRoots()
+    private IReadOnlyList<string> GetDriveRoots()
     {
-        try
+        if (_driveRoots is null || ++_driveRescanCounter >= 60)
         {
-            return DriveInfo.GetDrives()
-                .Where(d => d.IsReady)
-                .Select(d => d.RootDirectory.FullName)
-                .ToList();
+            _driveRescanCounter = 0;
+            try
+            {
+                _driveRoots = DriveInfo.GetDrives()
+                    .Where(d => d.IsReady)
+                    .Select(d => d.RootDirectory.FullName)
+                    .ToList();
+            }
+            catch
+            {
+                _driveRoots = new[] { SystemSnapshot.NormalizeDiskPath("/") };
+            }
         }
-        catch
-        {
-            return new[] { SystemSnapshot.NormalizeDiskPath("/") };
-        }
+        return _driveRoots;
     }
 
     private static DiskInfo? GetDisk(string root)
@@ -196,28 +207,32 @@ public sealed class SystemDataCollector : IDisposable
 
     // ---- 网络 ----
 
-    private static (long recv, long sent) GetNetTotals()
+    private (long recv, long sent) GetNetTotals()
     {
         try
         {
-            long recv = 0, sent = 0;
-            NetworkInterface? best = null;
-            long bestBytes = -1;
-            foreach (var ni in NetworkInterface.GetAllNetworkInterfaces())
+            // 每 60 tick 重扫一次接口（罕见变化）；平时复用对象只取新统计，避免每 tick 枚举产生的原生缓冲累积
+            if (_netInterface is null || ++_netRescanCounter >= 60)
             {
-                if (ni.OperationalStatus != OperationalStatus.Up) continue;
-                if (ni.NetworkInterfaceType == NetworkInterfaceType.Loopback) continue;
-                var stats = ni.GetIPv4Statistics();
-                var bytes = stats.BytesReceived + stats.BytesSent;
-                if (bytes > bestBytes) { bestBytes = bytes; best = ni; }
+                _netRescanCounter = 0;
+                NetworkInterface? best = null;
+                long bestBytes = -1;
+                foreach (var ni in NetworkInterface.GetAllNetworkInterfaces())
+                {
+                    if (ni.OperationalStatus != OperationalStatus.Up) continue;
+                    if (ni.NetworkInterfaceType == NetworkInterfaceType.Loopback) continue;
+                    var stats = ni.GetIPv4Statistics();
+                    var bytes = stats.BytesReceived + stats.BytesSent;
+                    if (bytes > bestBytes) { bestBytes = bytes; best = ni; }
+                }
+                _netInterface = best;
             }
-            if (best is not null)
+            if (_netInterface is not null)
             {
-                var s = best.GetIPv4Statistics();
-                recv = s.BytesReceived;
-                sent = s.BytesSent;
+                var s = _netInterface.GetIPv4Statistics();
+                return (s.BytesReceived, s.BytesSent);
             }
-            return (recv, sent);
+            return (0, 0);
         }
         catch
         {
@@ -240,33 +255,37 @@ public sealed class SystemDataCollector : IDisposable
         return (down, up);
     }
 
-    // ---- Top 进程（Conky update_top 等价物：进程 CPU/MEM 采样排序）----
+    // ---- 进程（Conky update_top 等价物：进程 CPU/MEM 采样排序；每 tick 只枚举一次并全部 Dispose）----
 
     private readonly Dictionary<int, (TimeSpan Cpu, DateTime Wall)> _procPrev = new();
 
-    private (IReadOnlyList<ProcessInfo> cpu, IReadOnlyList<ProcessInfo> mem) GetTopProcesses(
-        int count, double totalMemBytes)
+    private readonly record struct ProcessSnapshot(IReadOnlyList<ProcessInfo> Items, int Count, int RunningCount);
+
+    private ProcessSnapshot CollectProcesses(DateTime nowUtc, double totalMemBytes)
     {
-        var cpuList = new List<ProcessInfo>();
-        var memList = new List<ProcessInfo>();
-        var now = DateTime.UtcNow;
+        var items = new List<ProcessInfo>(256);
+        var seen = new HashSet<int>(256);
+        var count = 0;
+        var running = 0;
         var cores = Math.Max(1, Environment.ProcessorCount);
         try
         {
             foreach (var p in Process.GetProcesses())
             {
+                count++;
                 try
                 {
+                    var pid = p.Id;
                     var cpuTime = p.TotalProcessorTime;
                     var ws = p.WorkingSet64;
-                    var pid = p.Id;
                     var prev = _procPrev.TryGetValue(pid, out var v) ? v : default;
-                    _procPrev[pid] = (cpuTime, now);
+                    _procPrev[pid] = (cpuTime, nowUtc);
+                    seen.Add(pid);
 
                     double cpuPercent = 0;
-                    if (prev.Wall != default && now > prev.Wall && cpuTime >= prev.Cpu)
+                    if (prev.Wall != default && nowUtc > prev.Wall && cpuTime >= prev.Cpu)
                     {
-                        var deltaWall = (now - prev.Wall).TotalSeconds;
+                        var deltaWall = (nowUtc - prev.Wall).TotalSeconds;
                         if (deltaWall > 0)
                         {
                             cpuPercent = (cpuTime - prev.Cpu).TotalSeconds / deltaWall / cores * 100.0;
@@ -274,13 +293,29 @@ public sealed class SystemDataCollector : IDisposable
                     }
                     var name = Safe(() => p.ProcessName) ?? "?";
                     var memPercent = totalMemBytes > 0 ? ws / totalMemBytes * 100.0 : 0;
-                    var info = new ProcessInfo(name, pid, cpuPercent, memPercent, cpuTime.TotalSeconds);
-                    cpuList.Add(info);
-                    memList.Add(info);
+                    items.Add(new ProcessInfo(name, pid, cpuPercent, memPercent, cpuTime.TotalSeconds));
+
+                    // 运行中进程数（含任一 Running 线程）；ProcessThread 同样需要 Dispose
+                    try
+                    {
+                        foreach (ProcessThread t in p.Threads)
+                        {
+                            try
+                            {
+                                if (t.ThreadState == System.Diagnostics.ThreadState.Running) { running++; break; }
+                            }
+                            finally { t.Dispose(); }
+                        }
+                    }
+                    catch { /* 访问受限进程跳过 */ }
                 }
                 catch
                 {
                     // 访问受限进程跳过
+                }
+                finally
+                {
+                    p.Dispose();
                 }
             }
         }
@@ -289,38 +324,23 @@ public sealed class SystemDataCollector : IDisposable
             // 整体失败返回空榜
         }
 
-        // 清理已退出进程的采样缓存
-        if (_procPrev.Count > 1000) _procPrev.Clear();
-
-        return (
-            cpuList.OrderByDescending(x => x.CpuPercent).Take(count).ToList(),
-            memList.OrderByDescending(x => x.MemPercent).Take(count).ToList());
-    }
-
-    // ---- 进程 ----
-
-    private static int GetProcessCount()
-    {
-        try { return Process.GetProcesses().Length; }
-        catch { return 0; }
-    }
-
-    private static int GetRunningProcessCount()
-    {
-        var count = 0;
-        try
+        // 修剪已退出进程的采样缓存（保持字典有界，不再整表清空）
+        if (_procPrev.Count > seen.Count + 64)
         {
-            foreach (var p in Process.GetProcesses())
-            {
-                try
-                {
-                    if (p.Threads.Cast<ProcessThread>().Any(t => t.ThreadState == System.Diagnostics.ThreadState.Running)) count++;
-                }
-                catch { /* 访问受限进程跳过 */ }
-            }
+            foreach (var pid in _procPrev.Keys.Where(pid => !seen.Contains(pid)).ToList())
+                _procPrev.Remove(pid);
         }
-        catch { /* 整体失败返回 0 */ }
-        return count;
+
+        return new ProcessSnapshot(items, count, running);
+    }
+
+    private static (IReadOnlyList<ProcessInfo> cpu, IReadOnlyList<ProcessInfo> mem) GetTopProcesses(
+        IReadOnlyList<ProcessInfo> items, int count)
+    {
+        if (items.Count == 0) return (Array.Empty<ProcessInfo>(), Array.Empty<ProcessInfo>());
+        return (
+            items.OrderByDescending(x => x.CpuPercent).Take(count).ToList(),
+            items.OrderByDescending(x => x.MemPercent).Take(count).ToList());
     }
 
     // ---- 静态信息（带缓存，容错）----

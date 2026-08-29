@@ -19,6 +19,9 @@ public sealed class CliOptions
     /// <summary>启动时同时打开设置窗口（调试/CI 用）。</summary>
     public bool OpenSettings { get; private set; }
 
+    /// <summary>内存诊断：启动后每 10s 打印 GC/工作集/模块统计，60s 后自动退出（NFR-2 监测用）。</summary>
+    public bool MemInfo { get; private set; }
+
     public static CliOptions Parse(string[] args)
     {
         var o = new CliOptions();
@@ -38,6 +41,9 @@ public sealed class CliOptions
                     break;
                 case "--settings":
                     o.OpenSettings = true;
+                    break;
+                case "--mem-info":
+                    o.MemInfo = true;
                     break;
                 case "--help":
                 case "-h":
