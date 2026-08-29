@@ -129,6 +129,17 @@ public class ConkyTextParserTests
     }
 
     [Fact]
+    public void Render_HrAfterNewline_ConvertsEmptyLine_NoBlank()
+    {
+        // "a\n$hr\nb"：换行后的空行被 $hr 占用，不产生空行
+        var nodes = ConkyTextParser.Parse("a\n$hr\nb", _registry, _settings);
+        var layout = Render(nodes);
+        Assert.Equal(3, layout.Lines.Count);
+        Assert.True(layout.Lines[1].IsRule);
+        Assert.Equal("b", layout.Lines[2].PlainText);
+    }
+
+    [Fact]
     public void Render_UnknownVariable_ShowsPlaceholder()
     {
         var nodes = ConkyTextParser.Parse("$totally_unknown_xyz", _registry, _settings);

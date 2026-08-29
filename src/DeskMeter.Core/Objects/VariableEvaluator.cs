@@ -94,9 +94,12 @@ public static class VariableEvaluator
                 if (n < 0 || n >= list.Count) return null;
                 var info = list[n];
                 var inv = System.Globalization.CultureInfo.InvariantCulture;
+                // name 列：按 top_name_width（默认 15）截断+补齐，防止长进程名顶破列对齐
+                var nameWidth = (int)settings.GetNumber("top_name_width", 15);
+                var procName = info.Name.Length > nameWidth ? info.Name[..nameWidth] : info.Name;
                 return what switch
                 {
-                    "name" => info.Name.PadRight((int)settings.GetNumber("top_name_width", 15) + 1),
+                    "name" => procName.PadRight(nameWidth),
                     "pid" => info.Pid.ToString(inv).PadLeft(7),
                     "cpu" => info.CpuPercent.ToString("0.00", inv).PadLeft(6),
                     "mem" => info.MemPercent.ToString("0.00", inv).PadLeft(6),

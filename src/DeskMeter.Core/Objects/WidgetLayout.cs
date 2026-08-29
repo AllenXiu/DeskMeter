@@ -194,7 +194,15 @@ public sealed class WidgetLayout
 
     public void AppendRule(WidgetBrush brush)
     {
-        var line = NewLine();
+        // $hr：若当前行是空行（如上一段文字换行后），直接把该行变成规则行，避免 hr 上方空出一块
+        var line = CurrentLine;
+        if (line.Elements.Count == 0 && !line.IsRule)
+        {
+            line.IsRule = true;
+            line.RuleBrush = brush;
+            return;
+        }
+        line = NewLine();
         line.IsRule = true;
         line.RuleBrush = brush;
     }
