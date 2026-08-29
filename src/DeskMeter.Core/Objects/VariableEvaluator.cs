@@ -94,8 +94,8 @@ public static class VariableEvaluator
                 if (n < 0 || n >= list.Count) return null;
                 var info = list[n];
                 var inv = System.Globalization.CultureInfo.InvariantCulture;
-                // name 列：按 top_name_width（默认 15）截断+补齐，防止长进程名顶破列对齐
-                var nameWidth = (int)settings.GetNumber("top_name_width", 15);
+                // name 列：Conky 语义 = top_name_width + 1（默认 16），截断+补齐，防止长进程名顶破列对齐
+                var nameWidth = (int)settings.GetNumber("top_name_width", 15) + 1;
                 var procName = info.Name.Length > nameWidth ? info.Name[..nameWidth] : info.Name;
                 return what switch
                 {

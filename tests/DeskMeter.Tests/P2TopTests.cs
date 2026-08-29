@@ -13,7 +13,7 @@ public class P2TopTests
     [Fact]
     public void Top_CpuList_FieldsByNamePidCpuMem()
     {
-        Assert.Equal("firefox".PadRight(15), VariableEvaluator.Evaluate("top", new[] { "name", "1" }, TestHelpers.FakeSnapshot(), _settings));
+        Assert.Equal("firefox".PadRight(16), VariableEvaluator.Evaluate("top", new[] { "name", "1" }, TestHelpers.FakeSnapshot(), _settings));
         Assert.Equal("4821".PadLeft(7), VariableEvaluator.Evaluate("top", new[] { "pid", "1" }, TestHelpers.FakeSnapshot(), _settings));
         Assert.Equal("12.40".PadLeft(6), VariableEvaluator.Evaluate("top", new[] { "cpu", "1" }, TestHelpers.FakeSnapshot(), _settings));
         Assert.Equal("8.20".PadLeft(6), VariableEvaluator.Evaluate("top", new[] { "mem", "1" }, TestHelpers.FakeSnapshot(), _settings));
@@ -30,8 +30,8 @@ public class P2TopTests
             TopCpu = new[] { new DeskMeter.Core.Data.ProcessInfo(longName, 1, 10, 5) },
         };
         var value = VariableEvaluator.Evaluate("top", new[] { "name", "1" }, snap, _settings);
-        Assert.Equal(15, value!.Length);
-        Assert.Equal(new string('x', 15), value);
+        Assert.Equal(16, value!.Length);
+        Assert.Equal(new string('x', 16), value);
     }
 
     [Fact]
@@ -43,7 +43,7 @@ public class P2TopTests
     [Fact]
     public void TopMem_MemoryList_Fields()
     {
-        Assert.Equal("chrome".PadRight(15), VariableEvaluator.Evaluate("top_mem", new[] { "name", "1" }, TestHelpers.FakeSnapshot(), _settings));
+        Assert.Equal("chrome".PadRight(16), VariableEvaluator.Evaluate("top_mem", new[] { "name", "1" }, TestHelpers.FakeSnapshot(), _settings));
         Assert.Equal("20.10".PadLeft(6), VariableEvaluator.Evaluate("top_mem", new[] { "mem", "1" }, TestHelpers.FakeSnapshot(), _settings));
     }
 
@@ -55,7 +55,7 @@ public class P2TopTests
         var layout = new WidgetLayout();
         var ctx = new RenderContext(TestHelpers.FakeSnapshot(), _settings, layout);
         foreach (var n in nodes) n.Print(ctx);
-        var expected = "firefox".PadRight(15) + " " + "4821".PadLeft(7) + " " + "12.40".PadLeft(6) + " " + "8.20".PadLeft(6);
+        var expected = "firefox".PadRight(16) + " " + "4821".PadLeft(7) + " " + "12.40".PadLeft(6) + " " + "8.20".PadLeft(6);
         Assert.Equal(expected, layout.Lines[0].PlainText);
     }
 }
