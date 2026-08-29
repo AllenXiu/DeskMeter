@@ -131,7 +131,9 @@ public sealed class WidgetVisual : FrameworkElement
                                 var ft = new FormattedText(text.Text, CultureInfo.InvariantCulture,
                                     FlowDirection.LeftToRight, typeface, _options.FontSize, ToBrush(text.Brush), dpi);
                                 dc.DrawText(ft, new Point(x, y));
-                                x += ft.Width;
+                                // 关键：WPF FormattedText.Width 不含尾部空格，
+                                // 必须用 WidthIncludingTrailingWhitespace 才能让字符补齐的列真正占位
+                                x += ft.WidthIncludingTrailingWhitespace;
                                 break;
                             }
                             case WidgetBar bar:
@@ -288,7 +290,8 @@ public sealed class WidgetVisual : FrameworkElement
     {
         var ft = new FormattedText(text, CultureInfo.InvariantCulture, FlowDirection.LeftToRight,
             typeface, size, Brushes.Black, dpi);
-        return ft.Width;
+        // 尾部空格必须计入宽度（列对齐依赖字符补齐）
+        return ft.WidthIncludingTrailingWhitespace;
     }
 
     private static SolidColorBrush ToBrush(WidgetBrush b)

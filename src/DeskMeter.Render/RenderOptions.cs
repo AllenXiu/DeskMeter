@@ -1,3 +1,4 @@
+using System.Windows.Media;
 using DeskMeter.Core.Config;
 using DeskMeter.Core.Objects;
 
@@ -29,7 +30,11 @@ public sealed record RenderOptions
         if (!string.IsNullOrWhiteSpace(font))
         {
             var parts = font.Split(':', StringSplitOptions.RemoveEmptyEntries);
-            options = options with { FontFamily = parts[0].Trim() };
+            // 字体不可用（如 Linux 专用 DejaVu Sans Mono）时回退到已安装等宽字体，
+            // 否则 WPF 会回退成比例字体导致字符列宽不一致、表格列漂移
+            var family = parts[0].Trim();
+            if (!IsFontInstalled(family)) family = FindMonoFallback();
+            options = options with { FontFamily = family };
             foreach (var p in parts.Skip(1))
             {
                 var kv = p.Trim().Split('=', StringSplitOptions.RemoveEmptyEntries);
@@ -53,5 +58,32 @@ public sealed record RenderOptions
             MinimumHeight = minHeight > 0 ? minHeight : 0,
             MaximumWidth = maxWidth > 0 ? maxWidth : 0,
         };
+    }
+
+    private static readonly string[] MonoCandidates =
+        { "Consolas", "Cascadia Mono", "Courier New", "Lucida Console" };
+
+    private static readonly Lazy<HashSet<string>> InstalledFonts = new(() =>
+    {
+        var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        try
+        {
+            foreach (var f in Fonts.SystemFontFamilies) set.Add(f.Source);
+        }
+        catch { }
+        return set;
+    });
+
+    private static bool IsFontInstalled(string family)
+    {
+        try { return InstalledFonts.Value.Contains(family); }
+        catch { return false; }
+    }
+
+    private static string FindMonoFallback()
+    {
+        foreach (var candidate in MonoCandidates)
+            if (IsFontInstalled(candidate)) return candidate;
+        return "Consolas"; // 最后兜底（即使不存在，WPF 也会回退，但至少保持代码一致）
     }
 }
