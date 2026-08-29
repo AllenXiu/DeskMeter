@@ -22,6 +22,7 @@
   - `docs/DESIGN.md` —— **核心蓝本**：完整需求 + 与 Conky 同构的架构 + 功能矩阵
 - **Pixso 设计稿**：页面「DeskMeter」共 6 帧（见 §5）
 - **Git**：`main` 分支 4 commits（e7667f4 → 491961c → bfa9005 → 959ba62）已推送
+- **P0 实现**（`dev` 分支，已完成、未合并）：sln + Core/Render/App/Tests 四项目骨架、MoonSharp 配置引擎、Object Tree、WPF 透明置底窗口（`AllowsTransparency` + `WS_EX_TRANSPARENT` + `HWND_BOTTOM`）、Console 渲染后端、29 项单测全绿；可直接加载 `conky-main/data/conky.conf` 渲染（可监测有值、不可监测占位不报错）
 
 ## 3. 关键技术决策（已确认，勿轻易变更）
 
@@ -88,13 +89,12 @@
 
 ## 8. 待办事项（新会话从这开始）
 
-1. **P0 实现**（DESIGN.md §7 路线图）：
-   - ① 项目骨架（sln + src/DeskMeter.App / Core / Render + tests）
-   - ② Config Engine：MoonSharp 执行 conky.conf → Setting 注册表 → TEXT 解析为 Object Tree
-   - ③ 透明置底窗口（WPF `AllowsTransparency` + `WS_EX_TRANSPARENT` + `HWND_BOTTOM`）
-   - ④ Object Tree 基础文本渲染 + 2s 定时刷新
-   - 验收：直接加载 `conky-main/data/conky.conf` 能渲染（可监测有值、不可监测占位不报错）
-2. **P1**：bar/graph 矢量控件、颜色（#hex/colorN/命名颜色）、`${exec}`/`${execpi}` 异步、热重载、布局对象
+1. **P0 实现 ✅（`dev` 分支完成，2025 交接更新）**：骨架 / MoonSharp 配置引擎 / 透明置底窗口 / 文本渲染 + 定时刷新全部完成；验收通过（直接加载 `conky-main/data/conky.conf` 渲染，可监测有值、不可监测占位）。运行方式：
+   - `dotnet run --project src/DeskMeter.App -- --config <path>`（WPF 透明小部件）
+   - 追加 `--backend console` 无头渲染到 stdout；追加 `--smoke-test` 创建窗口 2.5s 自动关闭
+   - 单测：`dotnet test tests/DeskMeter.Tests`
+   - **已知 P0 边界（留给 P1/P2）**：bar 为 ASCII 文本占位（P1 矢量 Bar/Graph）；`${top}`/`${exec}` 输出 `--`；`$cpu N` 单核暂用总占用；scroll 静态不滚动；网络/CPU 首采样为 0；行内 `${font}` 解析但不生效；命名颜色为 X11 常用子集
+2. **P1**：bar/graph 矢量控件、颜色（#hex/colorN/命名颜色全量）、`${exec}`/`${execpi}` 异步、热重载、布局对象（alignc/alignr 行级排版、scroll 滚动）
 3. **P2**：温度（LibreHardwareMonitor）、Top 进程、鼠标事件（点击弹设置）、托盘、自启、多显示器、主题、设置界面
 4. **GitHub 待办**：仓库 About 描述写的是 "C# (Avalonia)"，需改为 WPF（用户手动改，暂缓）
 

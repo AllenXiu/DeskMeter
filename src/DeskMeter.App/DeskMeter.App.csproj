@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>DeskMeter.App</RootNamespace>
+    <AssemblyName>DeskMeter</AssemblyName>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\DeskMeter.Core\DeskMeter.Core.csproj" />
+    <ProjectReference Include="..\DeskMeter.Render\DeskMeter.Render.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\samples\conky.conf" Link="samples\conky.conf" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,107 @@
+using DeskMeter.Core.Config;
+using DeskMeter.Core.Objects;
+using Xunit;
+
+namespace DeskMeter.Tests;
+
+public class ConkyTextParserTests
+{
+    private readonly ObjectRegistry _registry = new();
+    private readonly ConfigSettings _settings = TestHelpers.Settings();
+
+    [Fact]
+    public void Parse_PlainText_SingleTextNode()
+    {
+        var nodes = ConkyTextParser.Parse("hello", _registry, _settings);
+        var node = Assert.Single(nodes);
+        Assert.IsType<TextNode>(node);
+    }
+
+    [Fact]
+    public void Parse_VariableAndArgs_ProducesExpectedNodes()
+    {
+        var nodes = ConkyTextParser.Parse("$cpu ${membar 4} x", _registry, _settings);
+        Assert.Equal(4, nodes.Count);
+        Assert.IsType<VariableNode>(nodes[0]);
+        Assert.IsType<TextNode>(nodes[1]);
+        Assert.IsType<BarNode>(nodes[2]);
+        Assert.IsType<TextNode>(nodes[3]);
+    }
+
+    [Fact]
+    public void Parse_DollarEscape_IsLiteralDollar()
+    {
+        var nodes = ConkyTextParser.Parse("price $$5", _registry, _settings);
+        var layout = Render(nodes);
+        Assert.Equal("price $5", layout.Lines[0].PlainText);
+    }
+
+    [Fact]
+    public void Parse_BackslashN_IsNewline()
+    {
+        var nodes = ConkyTextParser.Parse("a\nb", _registry, _settings);
+        var layout = Render(nodes);
+        Assert.Equal(2, layout.Lines.Count);
+        Assert.Equal("a", layout.Lines[0].PlainText);
+        Assert.Equal("b", layout.Lines[1].PlainText);
+    }
+
+    [Fact]
+    public void Parse_CaseInsensitive_ResolvesSameVariable()
+    {
+        var nodes = ConkyTextParser.Parse("${CPU} ${MemMax}", _registry, _settings);
+        Assert.IsType<VariableNode>(nodes[0]);
+        Assert.IsType<TextNode>(nodes[1]); // 中间的空格是文本节点
+        Assert.IsType<VariableNode>(nodes[2]);
+    }
+
+    [Fact]
+    public void Parse_ColorPaletteVariable_ProducesColorNode()
+    {
+        var nodes = ConkyTextParser.Parse("$color0 text", _registry, _settings);
+        Assert.IsType<ColorNode>(nodes[0]);
+        Assert.IsType<TextNode>(nodes[1]);
+    }
+
+    [Fact]
+    public void Render_UnknownVariable_ShowsPlaceholder()
+    {
+        var nodes = ConkyTextParser.Parse("$totally_unknown_xyz", _registry, _settings);
+        var layout = Render(nodes);
+        Assert.Equal("--", layout.Lines[0].PlainText);
+    }
+
+    [Fact]
+    public void Render_FakeSnapshot_ValuesAppear()
+    {
+        var nodes = ConkyTextParser.Parse(
+            "$hostname $cpu% $memperc% $uptime $freq $downspeed",
+            _registry, _settings);
+        var layout = Render(nodes);
+        var text = layout.ToConsoleText();
+        Assert.Contains("DESKTOP-ABC123", text);
+        Assert.Contains("12%", text);   // $cpu%：变量输出 12 + 字面 %
+        Assert.Contains("26%", text);   // 4.2/16 GiB = 26.25 → 26
+        Assert.Contains("3d 4h 12m", text);
+        Assert.Contains("3600", text);
+        Assert.Contains("2.4MiB/s", text);
+    }
+
+    [Fact]
+    public void Render_BarNode_FillsByPercent()
+    {
+        var nodes = ConkyTextParser.Parse("${membar 4}", _registry, _settings);
+        var layout = Render(nodes);
+        // 26% of 10 chars ≈ 3
+        Assert.Contains("[", layout.Lines[0].PlainText);
+        Assert.EndsWith("]", layout.Lines[0].PlainText);
+    }
+
+    private static WidgetLayout Render(System.Collections.Generic.List<ObjectNode> nodes)
+    {
+        var layout = new WidgetLayout();
+        var ctx = new RenderContext(TestHelpers.FakeSnapshot(), TestHelpers.Settings(), layout);
+        foreach (var n in nodes) n.Print(ctx);
+        return layout;
+    }
+}
