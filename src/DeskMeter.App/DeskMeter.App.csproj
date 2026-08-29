@@ -3,12 +3,18 @@
     <OutputType>WinExe</OutputType>
     <TargetFramework>net8.0-windows</TargetFramework>
     <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>DeskMeter.App</RootNamespace>
     <AssemblyName>DeskMeter</AssemblyName>
     <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>
+  <!-- WPF + WinForms 混用：移除隐式 using，消除 Application/Color 等二义（需处显式 using） -->
+  <ItemGroup>
+    <Using Remove="System.Windows.Forms" />
+    <Using Remove="System.Drawing" />
+  </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\DeskMeter.Core\DeskMeter.Core.csproj" />
     <ProjectReference Include="..\DeskMeter.Render\DeskMeter.Render.csproj" />

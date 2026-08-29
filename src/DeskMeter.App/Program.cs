@@ -35,6 +35,10 @@ internal static class Program
             timer.Tick += (_, _) => { timer.Stop(); window.Close(); };
             timer.Start();
         }
+
+        // 系统托盘（P2）：编辑配置… / 刷新 / 开机自启 / 退出
+        using var tray = new TrayIcon(window, options.ConfigPath);
+
         app.Run(window);
         return 0;
     }

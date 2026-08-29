@@ -1,5 +1,32 @@
 namespace DeskMeter.Core.Data;
 
+/// <summary>一个进程的 Top 榜条目（Conky top/top_mem 数据）。</summary>
+public sealed class ProcessInfo
+{
+    public ProcessInfo(string name, int pid, double cpuPercent, double memPercent, double cpuSeconds = 0)
+    {
+        Name = name;
+        Pid = pid;
+        CpuPercent = cpuPercent;
+        MemPercent = memPercent;
+        CpuSeconds = cpuSeconds;
+    }
+
+    /// <summary>进程名（如 firefox）。</summary>
+    public string Name { get; }
+
+    public int Pid { get; }
+
+    /// <summary>CPU 占用 %（两次采样增量计算）。</summary>
+    public double CpuPercent { get; }
+
+    /// <summary>内存占用 %（相对物理内存总量）。</summary>
+    public double MemPercent { get; }
+
+    /// <summary>累计 CPU 时间（秒，\${top time N} 用）。</summary>
+    public double CpuSeconds { get; }
+}
+
 /// <summary>一块磁盘的信息。</summary>
 public sealed class DiskInfo
 {
@@ -34,6 +61,12 @@ public sealed class SystemSnapshot
     public long TotalDownBytes { get; init; }
     public double UpSpeedBytesPerSec { get; init; }
     public double DownSpeedBytesPerSec { get; init; }
+
+    /// <summary>CPU 占用榜（\${top ...}，按 CpuPercent 降序，前 10）。</summary>
+    public IReadOnlyList<ProcessInfo> TopCpu { get; init; } = Array.Empty<ProcessInfo>();
+
+    /// <summary>内存占用榜（\${top_mem ...}，按 MemPercent 降序，前 10）。</summary>
+    public IReadOnlyList<ProcessInfo> TopMem { get; init; } = Array.Empty<ProcessInfo>();
 
     public DateTime Now { get; init; } = DateTime.Now;
     public TimeSpan Uptime { get; init; }

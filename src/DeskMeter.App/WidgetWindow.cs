@@ -129,6 +129,12 @@ public sealed class WidgetWindow : Window
         _nodes = ConkyTextParser.Parse(config.Text, _registry, config.Settings);
     }
 
+    /// <summary>托盘/外部触发手动刷新。</summary>
+    public void RequestRefresh()
+    {
+        Dispatcher.BeginInvoke(Refresh);
+    }
+
     private void Refresh()
     {
         try
@@ -155,7 +161,7 @@ public sealed class WidgetWindow : Window
         Width = w;
         Height = h;
 
-        var wa = SystemParameters.WorkArea;
+        var wa = GetTargetWorkArea();
         var gapX = _settings.GetNumber("gap_x", 16);
         var gapY = _settings.GetNumber("gap_y", 16);
         var alignment = _settings.GetAlignment();
@@ -175,6 +181,31 @@ public sealed class WidgetWindow : Window
         }
         Left = x;
         Top = y;
+    }
+
+    /// <summary>
+    /// 目标显示器工作区（deskmeter.monitor，P2 多显示器；超界钳制到有效屏）。
+    /// </summary>
+    private System.Drawing.Rectangle GetTargetWorkArea()
+    {
+        try
+        {
+            var index = (int)_settings.GetNumber("monitor", 0);
+            var screens = System.Windows.Forms.Screen.AllScreens;
+            if (screens.Length == 0) return Fallback();
+            index = Math.Clamp(index, 0, screens.Length - 1);
+            return screens[index].WorkingArea;
+        }
+        catch
+        {
+            return Fallback();
+        }
+
+        static System.Drawing.Rectangle Fallback()
+        {
+            var r = SystemParameters.WorkArea;
+            return new System.Drawing.Rectangle((int)r.Left, (int)r.Top, (int)r.Width, (int)r.Height);
+        }
     }
 
     /// <summary>SourceInitialized 后设置扩展样式（点击穿透/不激活/工具窗口）并置底。</summary>

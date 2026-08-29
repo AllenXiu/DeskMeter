@@ -83,8 +83,27 @@ public static class VariableEvaluator
                 return mhz > 0 ? (mhz / 1000.0).ToString("0.00", System.Globalization.CultureInfo.InvariantCulture) : null;
             }
 
-            // P2：Top 进程 / 温度 / 音乐
-            case "top": case "top_mem": return null;
+            case "top":
+            case "top_mem":
+            {
+                // Conky：top 用 CPU 榜，top_mem 用内存榜；字段 name/pid/cpu/mem
+                // 对齐格式与 Conky 一致：name 左对齐 top_name_width+1（默认 16）、pid %7i、cpu/mem %6.2f
+                var list = key == "top_mem" ? data.TopMem : data.TopCpu;
+                var what = Arg(0).ToLowerInvariant();
+                var n = ParseInt(Arg(1), 1) - 1;
+                if (n < 0 || n >= list.Count) return null;
+                var info = list[n];
+                var inv = System.Globalization.CultureInfo.InvariantCulture;
+                return what switch
+                {
+                    "name" => info.Name.PadRight((int)settings.GetNumber("top_name_width", 15) + 1),
+                    "pid" => info.Pid.ToString(inv).PadLeft(7),
+                    "cpu" => info.CpuPercent.ToString("0.00", inv).PadLeft(6),
+                    "mem" => info.MemPercent.ToString("0.00", inv).PadLeft(6),
+                    "time" => info.CpuSeconds.ToString("0", inv),
+                    _ => null,
+                };
+            }
 
             // P1：exec 异步执行；P0 占位
             case "exec": case "execpi": return null;

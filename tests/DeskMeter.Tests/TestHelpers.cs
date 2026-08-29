@@ -31,6 +31,16 @@ internal static class TestHelpers
         TotalDownBytes = (long)(12.5 * 1024 * 1024 * 1024),
         Now = new DateTime(2025, 1, 1, 14, 35, 30),
         Uptime = TimeSpan.FromDays(3) + TimeSpan.FromHours(4) + TimeSpan.FromMinutes(12),
+        TopCpu = new[]
+        {
+            new ProcessInfo("firefox", 4821, 12.4, 8.2),
+            new ProcessInfo("chrome", 100, 5.0, 3.0),
+        },
+        TopMem = new[]
+        {
+            new ProcessInfo("chrome", 100, 5.0, 20.1),
+            new ProcessInfo("firefox", 4821, 12.4, 8.2),
+        },
         HostName = "DESKTOP-ABC123",
         OsName = "Microsoft Windows 11 Pro",
         KernelVersion = "10.0.22631",

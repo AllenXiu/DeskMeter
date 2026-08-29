@@ -63,6 +63,19 @@ public class LuaConfigEngineTests
     }
 
     [Fact]
+    public void Parse_DeskmeterExtensionBlock_MergesKeys()
+    {
+        const string lua = """
+            conky.config = { update_interval = 2 }
+            conky.text = [[x]]
+            deskmeter = { monitor = 2, click_through = true }
+            """;
+        var config = _engine.Parse(lua);
+        Assert.Equal(2.0, config.Settings.GetNumber("monitor"));
+        Assert.True(config.Settings.GetBool("click_through"));
+    }
+
+    [Fact]
     public void Settings_GetAlignment_ParsesAbbreviations()
     {
         var cfg = TestHelpers.Settings(new Dictionary<string, object?> { ["alignment"] = "tr" });

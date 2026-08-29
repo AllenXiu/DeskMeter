@@ -29,6 +29,7 @@ public sealed class SystemDataCollector : IDisposable
         var (recv, sent) = GetNetTotals();
         var speed = GetNetSpeed(recv, sent, now);
         var (memUsed, memTotal, swapUsed, swapTotal) = GetMemory();
+        var (topCpu, topMem) = GetTopProcesses(10, memTotal);
 
         var snap = new SystemSnapshot
         {
@@ -50,6 +51,8 @@ public sealed class SystemDataCollector : IDisposable
             OsName = GetOsName(),
             KernelVersion = GetKernelVersion(),
             Machine = Environment.Is64BitOperatingSystem ? "x86_64" : "x86",
+            TopCpu = topCpu,
+            TopMem = topMem,
         };
 
         // 磁盘：常见根路径
@@ -170,6 +173,63 @@ public sealed class SystemDataCollector : IDisposable
         var up = seconds > 0 ? Math.Max(0, sent - _prevNetSent) / seconds : 0;
         _prevNetRecv = recv; _prevNetSent = sent; _prevNetTime = now;
         return (down, up);
+    }
+
+    // ---- Top 进程（Conky update_top 等价物：进程 CPU/MEM 采样排序）----
+
+    private readonly Dictionary<int, (TimeSpan Cpu, DateTime Wall)> _procPrev = new();
+
+    private (IReadOnlyList<ProcessInfo> cpu, IReadOnlyList<ProcessInfo> mem) GetTopProcesses(
+        int count, double totalMemBytes)
+    {
+        var cpuList = new List<ProcessInfo>();
+        var memList = new List<ProcessInfo>();
+        var now = DateTime.UtcNow;
+        var cores = Math.Max(1, Environment.ProcessorCount);
+        try
+        {
+            foreach (var p in Process.GetProcesses())
+            {
+                try
+                {
+                    var cpuTime = p.TotalProcessorTime;
+                    var ws = p.WorkingSet64;
+                    var pid = p.Id;
+                    var prev = _procPrev.TryGetValue(pid, out var v) ? v : default;
+                    _procPrev[pid] = (cpuTime, now);
+
+                    double cpuPercent = 0;
+                    if (prev.Wall != default && now > prev.Wall && cpuTime >= prev.Cpu)
+                    {
+                        var deltaWall = (now - prev.Wall).TotalSeconds;
+                        if (deltaWall > 0)
+                        {
+                            cpuPercent = (cpuTime - prev.Cpu).TotalSeconds / deltaWall / cores * 100.0;
+                        }
+                    }
+                    var name = Safe(() => p.ProcessName) ?? "?";
+                    var memPercent = totalMemBytes > 0 ? ws / totalMemBytes * 100.0 : 0;
+                    var info = new ProcessInfo(name, pid, cpuPercent, memPercent, cpuTime.TotalSeconds);
+                    cpuList.Add(info);
+                    memList.Add(info);
+                }
+                catch
+                {
+                    // 访问受限进程跳过
+                }
+            }
+        }
+        catch
+        {
+            // 整体失败返回空榜
+        }
+
+        // 清理已退出进程的采样缓存
+        if (_procPrev.Count > 1000) _procPrev.Clear();
+
+        return (
+            cpuList.OrderByDescending(x => x.CpuPercent).Take(count).ToList(),
+            memList.OrderByDescending(x => x.MemPercent).Take(count).ToList());
     }
 
     // ---- 进程 ----

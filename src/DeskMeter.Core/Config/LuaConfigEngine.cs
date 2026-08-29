@@ -51,22 +51,35 @@ public sealed class LuaConfigEngine
         }
 
         var conkyTable = conky.Table;
-        var settings = ParseSettings(conkyTable.Get("config"));
+        var settings = ParseSettings(conkyTable.Get("config"), script.Globals.Get("deskmeter"));
         var text = ParseText(conkyTable.Get("text"));
 
         return new ConkyConfig(sourcePath, settings, text, luaSource);
     }
 
-    private static ConfigSettings ParseSettings(DynValue config)
+    /// <summary>
+    /// 解析 conky.config，并合并 DeskMeter 扩展块（全局表 deskmeter，Conky 会忽略未知键，保证向后兼容）。
+    /// </summary>
+    private static ConfigSettings ParseSettings(DynValue config, DynValue deskmeter)
     {
         var values = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
-        if (config.IsNil() || config.Type != DataType.Table) return new ConfigSettings("", values);
-
-        foreach (var pair in config.Table.Pairs)
+        if (!config.IsNil() && config.Type == DataType.Table)
         {
-            var key = pair.Key.CastToString();
-            if (string.IsNullOrEmpty(key)) continue;
-            values[key] = Coerce(pair.Value);
+            foreach (var pair in config.Table.Pairs)
+            {
+                var key = pair.Key.CastToString();
+                if (string.IsNullOrEmpty(key)) continue;
+                values[key] = Coerce(pair.Value);
+            }
+        }
+        if (!deskmeter.IsNil() && deskmeter.Type == DataType.Table)
+        {
+            foreach (var pair in deskmeter.Table.Pairs)
+            {
+                var key = pair.Key.CastToString();
+                if (string.IsNullOrEmpty(key)) continue;
+                values[key] = Coerce(pair.Value); // monitor / click_through / autostart 等
+            }
         }
         return new ConfigSettings("", values);
     }
