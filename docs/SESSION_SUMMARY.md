@@ -1,0 +1,113 @@
+# DeskMeter 会话交接总结（Session Summary）
+
+> 目的：供**新会话**快速接手本项目。阅读本文档 + `docs/DESIGN.md`（完整需求设计蓝本）即可继续工作。
+> 生成：2025 年，DeskMeter 设计与规划阶段结束，P0 实现尚未开始。
+
+---
+
+## 1. 项目概况
+
+| 项 | 内容 |
+|---|---|
+| 产品 | **DeskMeter** —— Conky 风格的 Windows 桌面系统监控小部件 |
+| 仓库 | https://github.com/AllenXiu/DeskMeter（public，MIT） |
+| 核心价值 | 透明融入壁纸、命令行式纯文本 + 矢量 bar/graph、配置驱动、无广告遥测 |
+| 目标 | **Windows 可监测范围内与 Conky 功能无差异**（配置语法/变量/行为完全兼容） |
+
+## 2. 当前状态（已完成 ✅）
+
+- **文档**（已提交 main，4 commits 全部推送）：
+  - `README.md` / `README_zh.md`（产品介绍）
+  - `LICENSE`（MIT）
+  - `docs/DESIGN.md` —— **核心蓝本**：完整需求 + 与 Conky 同构的架构 + 功能矩阵
+- **Pixso 设计稿**：页面「DeskMeter」共 6 帧（见 §5）
+- **Git**：`main` 分支 4 commits（e7667f4 → 491961c → bfa9005 → 959ba62）已推送
+
+## 3. 关键技术决策（已确认，勿轻易变更）
+
+| 决策 | 结论 |
+|---|---|
+| 技术栈 | **C# / .NET 8 + WPF**（仅 Windows）+ **MoonSharp**（纯 C# Lua 5.2，执行 conky.conf） |
+| 许可证 | **MIT**（Conky 是 GPL-3.0，只对齐行为/语法，**不复制源码**，规避传染） |
+| 平台 | 仅 Windows 10/11 |
+| 无差异范围 | Windows 可监测范围内与 Conky 功能无差异；Linux 专属对象（acpi/mpd/…）语法解析但返回占位 |
+| 资源占用 | 接受 .NET 常规（NFR-2：内存 <100MB） |
+| Non-goals | 不做 Lua 绘图脚本（Cairo 级）、交互式皮肤、皮肤市场；**配置执行支持完整 Lua**（MoonSharp） |
+
+## 4. 与 Conky 的架构对齐（DESIGN.md §5 已落地）
+
+对照 Conky 源码（本地 `conky-main/`）确认的 **4 个同构机制**：
+
+1. **Lua 解释器执行配置**（≈ Conky lua-config）：`conky.conf` 即完整 Lua 代码，MoonSharp 执行，支持函数/变量/计算/`dofile()`
+2. **对象树 + 回调**（≈ Conky text_object / OBJ 宏）：每个 `${var}`/文本片段一个 ObjectNode，含 `Print/Iftest/BarVal/GraphVal/Percentage` 回调；OBJ/OBJ_ARG/OBJ_IF 注册表；支持条件块与嵌套
+3. **异步周期回调**（≈ Conky update-cb）：`exec`/`top`/网络用 Task 周期回调，不阻塞主循环
+4. **多后端渲染抽象**（≈ Conky display_output_base）：WpfWindow / Console / File / HTTP
+
+分层：`Display Output → Renderer（等宽文本+矢量 bar/graph）→ Object Tree → Data Providers → Config Engine(MoonSharp)`，详见 DESIGN.md §5.1。
+
+**功能差距已补齐**：`cpubar`（非 cpu_bar）、`fs_*` 磁盘系列、参数化 bar/graph（`${cpubar 6}` `${membar 6,120}` `${fs_bar 6 /}`）、命名颜色（`${color grey}`）、swap/freq/processes/top pid/scroll 变量、`minimum_size` 与 `minimum_width/height` 别名、等宽字体默认（Consolas）、鼠标事件（P2）、布局对象（alignc/alignr/goto/hr/offset）。
+
+## 5. Pixso 设计稿（6 帧，均已截图验证）
+
+| 帧 | 内容 |
+|---|---|
+| **Widget Default** | 命令行风格纯文本 + 矢量 bar/graph：主机名+时钟、`$hr` 分隔线、CPU 12%/内存 26%/磁盘 58%（标签+百分比+进度条）、网络/运行时间、底部 CPU 曲线图 |
+| **Desktop Scene** | 1920×1080 浅色壁纸 + 右上角 (16,16) 小部件 |
+| **Settings Window**（常规） | 刷新间隔 / 点击穿透 / 开机自启 / 显示器（运行时开关） |
+| **Settings 配置** | conky.conf 文件编辑器：26 行完整示例（Consolas、own_window 系列、参数化 bar、`${color grey}`）、行号、语法高亮、垂直滚动条、工具栏（撤销/重做/查找/保存） |
+| **Settings 关于** | Logo「D」、版本 v0.1.0、MIT/配置路径/主页/版权 |
+| **Tray Interaction** | 底部任务栏 + 系统托盘图标「D」+ 弹出菜单（设置…高亮/编辑配置…/刷新/退出） |
+
+三页设置窗口统一高度 **660**。
+
+**Pixso 环境限制**（已知）：仅 Noto Sans SC 字体；变量无模式切换 API（设计稿用浅色主题）；SVG 内嵌色无法绑变量。
+
+## 6. 参考资源
+
+- Conky 源码：`conky-main/`（本地，仅参考，已加 `.gitignore`）
+- Conky 官方文档：https://conky.sourceforge.net/docs.html
+- Conky 默认配置：`conky-main/data/conky.conf`（命令行风格实证）
+- 使用教程：https://geek-blogs.com/blog/conky-linux/
+
+## 7. 重要踩坑记录（实现/设计时注意）
+
+**Pixso DSL**：
+- padding 数组 `[a,b]` 实际语义是 **[垂直, 水平]**（与 schema 文档标注相反）
+- `$var` 字面文本会被 DSL 误判为变量引用 → 用占位文本创建 + `eval_script` 写回 `characters`
+- grid 方向 autoLayout 不生效 → 用绝对定位手动排
+- `M(node, parent, index)` 的 index 是"排到该位元素之前"
+- 绑定名必须 ASCII；顶层 I 需 `name=I(...)` 绑定
+- 截图验证用 `get_export_image`（临时 URL 立即下载）+ `describe_image` 检查
+
+**Conky 兼容**：
+- 变量名必须用 Conky 标准：`cpubar`/`membar`/`swapbar`/`fs_bar`/`fs_free_perc`（不是自定义名）
+- 配置键 `minimum_size` 与 `minimum_width`/`minimum_height` 均支持（官方文档与默认配置各用其一）
+- 颜色：`default_color` + `color0-9` + `#RRGGBB` + X11 命名颜色
+
+**许可证**：Conky 是 GPL-3.0，本项目 MIT——只参考行为不复制源码。
+
+## 8. 待办事项（新会话从这开始）
+
+1. **P0 实现**（DESIGN.md §7 路线图）：
+   - ① 项目骨架（sln + src/DeskMeter.App / Core / Render + tests）
+   - ② Config Engine：MoonSharp 执行 conky.conf → Setting 注册表 → TEXT 解析为 Object Tree
+   - ③ 透明置底窗口（WPF `AllowsTransparency` + `WS_EX_TRANSPARENT` + `HWND_BOTTOM`）
+   - ④ Object Tree 基础文本渲染 + 2s 定时刷新
+   - 验收：直接加载 `conky-main/data/conky.conf` 能渲染（可监测有值、不可监测占位不报错）
+2. **P1**：bar/graph 矢量控件、颜色（#hex/colorN/命名颜色）、`${exec}`/`${execpi}` 异步、热重载、布局对象
+3. **P2**：温度（LibreHardwareMonitor）、Top 进程、鼠标事件（点击弹设置）、托盘、自启、多显示器、主题、设置界面
+4. **GitHub 待办**：仓库 About 描述写的是 "C# (Avalonia)"，需改为 WPF（用户手动改，暂缓）
+
+## 9. Git 工作流约定（重要）
+
+- **本地操作**（status/add/commit/log/merge/分支）：DSH 直接执行，无需凭据
+- **远程操作**（push/pull/fetch）：**DSH 沙箱读不到 Windows 凭据存储**（SEC_E_NO_CREDENTIALS）→ 需用户批准 DSH 权限升级，或由用户在普通终端执行
+- 凭据实际存在（GitHub Desktop 已写入 `git:https://github.com`），用户无需重新登录
+- 分支约定：日常在 `dev` 分支开发，完成后合并 `main` 并推送
+
+## 10. 会话关键决策记录（问答回溯）
+
+- 设计稿迭代：命令行风格（用户纠正"不要图片化"→ 后澄清 bar/graph 是矢量非位图，已恢复）
+- 设置界面：外观全部配置化（对齐/边距/字体/颜色进 conky.conf）；内容=conky.conf 编辑器（无实时预览，桌面即预览）
+- 技术栈：用户会 C++（cocos2dx 背景）但确认保持 C#/.NET + WPF（GPL 传染 + 开发效率考量）
+- 弹窗：用户澄清为**系统托盘图标**点击弹菜单（非桌面小部件点击）
