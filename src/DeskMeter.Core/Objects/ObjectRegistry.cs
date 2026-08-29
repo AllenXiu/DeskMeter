@@ -45,6 +45,10 @@ public sealed class ObjectRegistry
             return new BarNode(d => 100 - d.GetDisk(path).FreePercent, sizeArgs, s);
         });
 
+        // exec / execpi（异步执行，FR-LATER.exec）
+        Register("exec", (args, _) => new ExecNode(args, periodic: false));
+        Register("execpi", (args, _) => new ExecNode(args, periodic: true));
+
         // 曲线图（矢量 Graph，Conky 语义：高度[,宽度]，环形缓冲 80 点）
         Register("cpugraph", (args, s) => new GraphNode(d => d.CpuPercent, args, s));
         Register("downspeedgraph", (args, s) => new GraphNode(d => d.DownSpeedBytesPerSec, args, s));
@@ -56,7 +60,7 @@ public sealed class ObjectRegistry
             "swap", "swapmax", "swapperc", "fs_used", "fs_free", "fs_size", "fs_free_perc",
             "fs_used_perc", "fs_type", "downspeed", "upspeed", "downspeedf", "upspeedf",
             "totaldown", "totalup", "processes", "running_processes", "freq", "freq_g",
-            "top", "top_mem", "exec", "execpi",
+            "top", "top_mem",
             "acpi", "acpitemp", "apm_adapter", "apm_battery", "apcupsd", "battery", "battery_time",
             "battery_percent", "battery_short", "hddtemp", "platform", "i2c", "smapi",
             "mpd_artist", "mpd_title", "mpd_album", "mpd_vol", "mpd_random", "mpc",

@@ -115,9 +115,9 @@ public sealed class WidgetVisual : FrameworkElement
                 else
                 {
                     var x = _options.Padding;
-                    foreach (var element in line.Elements)
+                    for (var ei = 0; ei < line.Elements.Count; ei++)
                     {
-                        switch (element)
+                        switch (line.Elements[ei])
                         {
                             case WidgetText text:
                             {
@@ -148,6 +148,20 @@ public sealed class WidgetVisual : FrameworkElement
                                 var gh = graph.Height;
                                 DrawGraph(dc, x, y + (lineHeight - gh) / 2, gw, gh, graph.Brush, graph.Series);
                                 x += gw;
+                                break;
+                            }
+                            case WidgetAlignC:
+                            {
+                                // Conky ALIGNC：剩余内容在窗口内容宽度内居中
+                                var remaining = MeasureRemaining(line.Elements, ei + 1, typeface, dpi);
+                                x = Math.Max(x, (widgetWidth - remaining) / 2);
+                                break;
+                            }
+                            case WidgetAlignR r:
+                            {
+                                // Conky ALIGNR：剩余内容右对齐，右缘留 N 像素
+                                var remaining = MeasureRemaining(line.Elements, ei + 1, typeface, dpi);
+                                x = Math.Max(x, widgetWidth - remaining - r.N);
                                 break;
                             }
                         }
@@ -229,6 +243,29 @@ public sealed class WidgetVisual : FrameworkElement
         var brush = new SolidColorBrush(Color.FromArgb(alpha, b.R, b.G, b.B));
         brush.Freeze();
         return brush;
+    }
+
+    /// <summary>测量从 from 开始的本行剩余元素宽度（text 与显式宽度的 bar/graph；align/goto 不计）。</summary>
+    private double MeasureRemaining(System.Collections.Generic.IReadOnlyList<WidgetElement> elements,
+        int from, Typeface typeface, double dpi)
+    {
+        double w = 0;
+        for (var i = from; i < elements.Count; i++)
+        {
+            switch (elements[i])
+            {
+                case WidgetText t:
+                    w += Measure(t.Text, typeface, _options.FontSize, dpi);
+                    break;
+                case WidgetBar b when b.Width > 0:
+                    w += b.Width;
+                    break;
+                case WidgetGraph g when g.Width > 0:
+                    w += g.Width;
+                    break;
+            }
+        }
+        return w;
     }
 
     private static double Measure(string text, Typeface typeface, double size, double dpi)

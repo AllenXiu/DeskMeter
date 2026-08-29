@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using DeskMeter.Core.Config;
 using DeskMeter.Core.Data;
 
@@ -46,20 +47,151 @@ public sealed class FontNode : ObjectNode
     public override void Print(RenderContext ctx) { }
 }
 
-/// <summary>${scroll N ...}：P0 静态展开内部变量并显示全部文本，P1 实现循环滚动动画。</summary>
+/// <summary>
+/// ${scroll N ...}：Conky 语义——[left|right|wait] 长度 [步长] [间隔] 文本；
+/// 文本超过长度时前缀补空格向左滚动（默认），每次刷新前进 step 字符，到尾回绕。
+/// </summary>
 public sealed class ScrollNode : ObjectNode
 {
     private readonly List<ObjectNode> _nodes;
+    private readonly int _show;
+    private readonly int _step;
+    private int _start;
 
     public ScrollNode(string[] args, ObjectRegistry registry, ConfigSettings settings)
     {
-        var text = args.Length > 1 ? string.Join(" ", args[1..]) : string.Empty;
+        _step = 1;
+        var i = 0;
+        if (args.Length > 0 && args[0] is "left" or "l") i = 1;
+        else if (args.Length > 0 && args[0] is "right" or "r" or "wait" or "w")
+        {
+            // 右向/等待 P1 简化：按左向处理（默认方向与官方配置一致）
+            i = 1;
+        }
+        _show = i < args.Length && int.TryParse(args[i], out var show) ? Math.Max(1, show) : 32;
+        i++;
+        // 可选 step / interval 仅在能解析为数字时消耗，否则属于文本（Conky sscanf 语义）
+        if (i < args.Length && int.TryParse(args[i], out var step))
+        {
+            _step = Math.Max(1, step);
+            i++;
+            if (i < args.Length && int.TryParse(args[i], out _)) i++;
+        }
+        var text = string.Join(" ", args[i..]);
         _nodes = ConkyTextParser.Parse(text, registry, settings);
     }
 
     public override void Print(RenderContext ctx)
     {
-        foreach (var node in _nodes) node.Print(ctx);
+        // 1) 展开嵌套变量为纯文本（Conky generate_text_internal 等价物）
+        var temp = new WidgetLayout();
+        var tempCtx = new RenderContext(ctx.Data, ctx.Settings, temp);
+        foreach (var node in _nodes) node.Print(tempCtx);
+        var full = string.Concat(temp.Lines.SelectMany(l => l.Elements.OfType<WidgetText>().Select(t => t.Text)));
+        full = full.Replace('\n', '|'); // Conky LINESEPARATOR
+
+        // 2) 文本不超过长度 → 静态显示
+        if (full.Length <= _show)
+        {
+            ctx.Layout.AppendText(full, ctx.CurrentBrush);
+            return;
+        }
+
+        // 3) 前缀补 _show 个空格，窗口左移
+        var padded = new string(' ', _show) + full;
+        _start += _step;
+        if (_start >= padded.Length) _start = 0;
+        var len = Math.Min(_show, padded.Length - _start);
+        ctx.Layout.AppendText(padded.Substring(_start, len), ctx.CurrentBrush);
+    }
+}
+
+/// <summary>
+/// \${exec 命令} / \${execpi N 命令}：异步执行命令并显示 stdout（FR-LATER.exec）。
+/// exec 每次刷新执行；execpi 每 N 秒执行一次。3s 超时；未完成/失败显示占位或保留上次输出，
+/// 不阻塞主循环（update_cb 等价物）。
+/// </summary>
+public sealed class ExecNode : ObjectNode
+{
+    private const string Placeholder = "--";
+    private const int MaxOutputLength = 1024;
+    private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(3);
+
+    private readonly string _command;
+    private readonly TimeSpan? _interval;
+    private readonly object _lock = new();
+    private string? _output;
+    private DateTime _lastStart;
+    private bool _running;
+
+    public ExecNode(string[] args, bool periodic)
+    {
+        if (periodic && args.Length >= 2 &&
+            double.TryParse(args[0], System.Globalization.NumberStyles.Any,
+                System.Globalization.CultureInfo.InvariantCulture, out var seconds) && seconds > 0)
+        {
+            _interval = TimeSpan.FromSeconds(seconds);
+            _command = string.Join(" ", args[1..]);
+        }
+        else
+        {
+            _command = string.Join(" ", args);
+        }
+    }
+
+    public override void Print(RenderContext ctx)
+    {
+        lock (_lock)
+        {
+            var due = _output is null || _interval is null ||
+                      DateTime.UtcNow - _lastStart >= _interval.Value;
+            if (due && !_running)
+            {
+                _running = true;
+                _lastStart = DateTime.UtcNow;
+                _ = RunAsync();
+            }
+            ctx.Layout.AppendText(_output ?? Placeholder, ctx.CurrentBrush);
+        }
+    }
+
+    private async Task RunAsync()
+    {
+        Process? process = null;
+        try
+        {
+            using var cts = new CancellationTokenSource(Timeout);
+            var psi = new ProcessStartInfo
+            {
+                FileName = "cmd.exe",
+                Arguments = "/c " + _command,
+                RedirectStandardOutput = true,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            };
+            process = Process.Start(psi);
+            if (process is null) return;
+
+            var stdout = await process.StandardOutput.ReadToEndAsync(cts.Token);
+            await process.WaitForExitAsync(cts.Token);
+            var text = stdout.TrimEnd('\r', '\n');
+            lock (_lock)
+            {
+                _output = text.Length > MaxOutputLength ? text[..MaxOutputLength] : text;
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            try { process?.Kill(entireProcessTree: true); } catch { /* 已退出 */ }
+        }
+        catch
+        {
+            // 启动/读取失败：保留上次输出（无则占位）
+        }
+        finally
+        {
+            lock (_lock) _running = false;
+        }
     }
 }
 
@@ -82,6 +214,12 @@ public sealed class LayoutNode : ObjectNode
             case "goto":
                 // Conky GOTO 语义：跳到本行第 N 像素列（相对文本区起点），由渲染层处理
                 ctx.Layout.AppendGoto(_n);
+                break;
+            case "alignc":
+                ctx.Layout.AppendAlignC();
+                break;
+            case "alignr":
+                ctx.Layout.AppendAlignR(_n);
                 break;
             case "offset":
                 // offset 为像素相对偏移；P0 用空格近似，P1 改为像素元素

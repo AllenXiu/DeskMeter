@@ -92,6 +92,23 @@ public sealed class WidgetGraph : WidgetElement
     public double Width { get; }
 }
 
+/// <summary>${alignc}：把本行剩余内容水平居中（相对窗口内容宽度，Conky ALIGNC 语义）。</summary>
+public sealed class WidgetAlignC : WidgetElement
+{
+}
+
+/// <summary>${alignr N}：把本行剩余内容右对齐（右缘留 N 像素，Conky ALIGNR 语义）。</summary>
+public sealed class WidgetAlignR : WidgetElement
+{
+    public WidgetAlignR(double n)
+    {
+        N = n;
+    }
+
+    /// <summary>距右缘的像素空隙。</summary>
+    public double N { get; }
+}
+
 /// <summary>${goto N}：把当前绘制位置跳到本行第 N 像素列（相对文本区起点，Conky GOTO 语义）。</summary>
 public sealed class WidgetGoto : WidgetElement
 {
@@ -161,6 +178,20 @@ public sealed class WidgetLayout
         line.Elements.Add(new WidgetGraph(series, brush, height, width));
     }
 
+    public void AppendAlignC()
+    {
+        var line = CurrentLine;
+        if (line.IsRule) line = NewLine();
+        line.Elements.Add(new WidgetAlignC());
+    }
+
+    public void AppendAlignR(double n)
+    {
+        var line = CurrentLine;
+        if (line.IsRule) line = NewLine();
+        line.Elements.Add(new WidgetAlignR(n));
+    }
+
     public void AppendRule(WidgetBrush brush)
     {
         var line = NewLine();
@@ -202,6 +233,10 @@ public sealed class WidgetLayout
                             break;
                         case WidgetGraph graph:
                             sb.Append(GraphToTicks(graph));
+                            break;
+                        case WidgetAlignC:
+                        case WidgetAlignR:
+                            // Conky console 后端忽略对齐对象（仅 GUI 生效）
                             break;
                     }
                 }

@@ -95,8 +95,9 @@
    - 单测：`dotnet test tests/DeskMeter.Tests`
    - **已完成的 P1 子项**：矢量 Bar（Conky 语义：`高度[,宽度]`、默认高 6、宽度省略=填满本行剩余宽度；WPF 圆角矩形描边+填充，console 后端 `#`/`.` 回退）；窗口尺寸按 Conky `text_size` 语义钳制（`minimum_size` / `minimum_width` / `minimum_height` / `maximum_width` 已生效，bar 填满钳制后的宽度），`use_spacer = left|right` 可给动态字段（百分比/字节/速率）补空格防抖动；`${goto N}` 已按 Conky 像素绝对定位实现（计入行宽、console 忽略）；示例配置 `minimum_width = maximum_width = 260` + `${goto 110}` 固定 bar 起点列 → 三条 bar 等长、左右两端对齐、与文字留固定空隙，多次刷新窗口尺寸/位置恒定（268×159 截图验证）
    - **已完成的 P1 子项（续）**：矢量 Graph 曲线图（`${cpugraph}`/`${downspeedgraph}`/`${upspeedgraph}`，`高[,宽]` 参数、默认高 25 宽 0=填满剩余，环形缓冲最近 80 点 FR-VIZ-2，WPF 折线+半透明面积、按系列最大值自动缩放，console 用 `console_graph_ticks=" ,_,=,#"` 回退；示例配置底部已加 `${cpugraph 32}`）；热重载（`FileSystemWatcher` + 300ms 防抖，保存后 1s 内生效，失败保留旧配置 FR-RELOAD-2/FR-CFG-3，`disable_auto_reload` 可关；已用改 color0 蓝→红截图验证）
-   - **已知 P0/P1 边界**：`${top}`/`${exec}` 输出 `--`；`$cpu N` 单核暂用总占用；scroll 静态不滚动；行内 `${font}` 解析但不生效；alignc/alignr 行级排版未实现；命名颜色为 X11 常用子集；graph 的 -t/-l/-x/-y/-m 旗标解析忽略；网络/CPU 首采样为 0
-2. **P1 剩余**：`${exec}`/`${execpi}` 异步、alignc/alignr 行级排版、scroll 滚动、命名颜色全量
+   - **已完成的 P1 子项（续2）**：`${exec}`/`${execpi}` 异步（cmd /c 执行、3s 超时、失败/未完成显示 `--` 或保留上次输出，不阻塞主循环，已截图验证 exec 输出 hello world）；`${alignc}`/`${alignr N}` 行级排版（渲染层按剩余内容宽度居中/右对齐，console 按 Conky 忽略）；`${scroll N ...}` 滚动（Conky 语义：[方向] 长度 [步长] [间隔] 文本，前缀补空格左移、每帧 step 字符、到尾回绕；右向/wait 简化按左向）；命名颜色全量（System.Drawing.KnownColor 生成标准 X11/CSS 扩展色 ~140 色 + grey/gray 双拼写，已截图验证 peachpuff/cornflowerblue/navajowhite）
+   - **已知边界**：`${top}`/`${top_mem}` 输出 `--`（P2）；`$cpu N` 单核暂用总占用；行内 `${font}` 解析不生效；scroll 的 right/wait 方向与 graph 的 -t/-l/-x/-y/-m 旗标按简化处理；offset/voffset/tab 仍为空格近似；网络/CPU 首采样为 0
+2. **P2（未开始）**：温度（LibreHardwareMonitor）、Top 进程、鼠标事件、托盘、自启、多显示器、主题、设置界面
 3. **P2**：温度（LibreHardwareMonitor）、Top 进程、鼠标事件（点击弹设置）、托盘、自启、多显示器、主题、设置界面
 4. **GitHub 待办**：仓库 About 描述写的是 "C# (Avalonia)"，需改为 WPF（用户手动改，暂缓）
 
