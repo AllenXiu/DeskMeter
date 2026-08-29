@@ -49,10 +49,11 @@ public partial class SettingsWindow : Window
 
         var full = Path.GetFullPath(configPath);
         ConfigPathText.Text = full;
-        AboutConfigPath.Text = full;
-        EditorConfigPath.Text = full;
+        AboutConfigPath.Text = _configs.ConfigsDirectory; // 配置库目录（Pixso 设计稿：配置目录）
         AboutVersionText.Text = "版本 " + VariableEvaluator.Version.Replace("DeskMeter ", "v");
+        VersionBadgeText.Text = VariableEvaluator.Version.Replace("DeskMeter ", "v");
 
+        ShowPage(0); // 默认常规页
         RefreshConfigList();
     }
 
@@ -104,7 +105,7 @@ public partial class SettingsWindow : Window
         if (_configs.SetCurrent(entry))
         {
             _configPath = entry.Path;
-            EditorConfigPath.Text = entry.Path;
+            ConfigPathText.Text = Path.GetFullPath(entry.Path);
             RefreshConfigList();
         }
     }
@@ -179,6 +180,50 @@ public partial class SettingsWindow : Window
         base.OnActivated(e);
         AutostartBox.IsChecked = Autostart.IsEnabled();
     }
+
+    // ---- 左侧导航（Pixso 设计稿：常规 / 配置 / 关于）----
+
+    private void OnNavGeneral(object sender, System.Windows.Input.MouseButtonEventArgs e) => ShowPage(0);
+
+    private void OnNavConfig(object sender, System.Windows.Input.MouseButtonEventArgs e) => ShowPage(1);
+
+    private void OnNavAbout(object sender, System.Windows.Input.MouseButtonEventArgs e) => ShowPage(2);
+
+    private void ShowPage(int index)
+    {
+        GeneralPage.Visibility = index == 0 ? Visibility.Visible : Visibility.Collapsed;
+        ConfigPage.Visibility = index == 1 ? Visibility.Visible : Visibility.Collapsed;
+        AboutPage.Visibility = index == 2 ? Visibility.Visible : Visibility.Collapsed;
+
+        var brushes = new System.Windows.Media.Brush?[]
+        {
+            index == 0 ? (System.Windows.Media.Brush)FindResource("PrimarySoftBrush") : System.Windows.Media.Brushes.Transparent,
+            index == 1 ? (System.Windows.Media.Brush)FindResource("PrimarySoftBrush") : System.Windows.Media.Brushes.Transparent,
+            index == 2 ? (System.Windows.Media.Brush)FindResource("PrimarySoftBrush") : System.Windows.Media.Brushes.Transparent,
+        };
+        var text = new[] { NavGeneral, NavConfig, NavAbout };
+        for (var i = 0; i < text.Length; i++)
+        {
+            text[i].Background = brushes[i]!;
+            // 选中项图标/文字用主色，未选中用次要色
+            if (text[i].Child is StackPanel sp)
+            {
+                foreach (var tb in sp.Children.OfType<TextBlock>())
+                    tb.Foreground = i == index
+                        ? (System.Windows.Media.Brush)FindResource("PrimaryBrush")
+                        : (System.Windows.Media.Brush)FindResource("TextSecondaryBrush");
+            }
+        }
+    }
+
+    // ---- 自定义标题栏 ----
+
+    private void OnTitleBarMouseDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        if (e.LeftButton == System.Windows.Input.MouseButtonState.Pressed) DragMove();
+    }
+
+    private void OnCloseClick(object sender, RoutedEventArgs e) => Close();
 
     private void OnSave(object sender, RoutedEventArgs e)
     {

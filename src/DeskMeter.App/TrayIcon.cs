@@ -49,7 +49,6 @@ public sealed class TrayIcon : IDisposable
         // 每次弹出菜单：重建配置子菜单（勾选当前配置）
         menu.Opening += (_, _) => RebuildConfigMenu();
         _icon.ContextMenuStrip = menu;
-        _icon.DoubleClick += (_, _) => OpenConfigEditor();
     }
 
     /// <summary>重建"配置▶"子菜单：列出配置库，勾选当前项，点击切换；附"导入配置…"。</summary>
@@ -104,23 +103,6 @@ public sealed class TrayIcon : IDisposable
             SwitchTo(entry);
         }
         catch { }
-    }
-
-    private void OpenConfigEditor()
-    {
-        try
-        {
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-            {
-                FileName = "notepad.exe",
-                Arguments = _configPath,
-                UseShellExecute = true,
-            });
-        }
-        catch
-        {
-            // 无法打开编辑器时忽略
-        }
     }
 
     private static System.Drawing.Icon CreateIcon()

@@ -52,14 +52,16 @@
 
 | 帧 | 内容 |
 |---|---|
-| **Widget Default** | 命令行风格纯文本 + 矢量 bar/graph：主机名+时钟、`$hr` 分隔线、CPU 12%/内存 26%/磁盘 58%（标签+百分比+进度条）、网络/运行时间、底部 CPU 曲线图 |
-| **Desktop Scene** | 1920×1080 浅色壁纸 + 右上角 (16,16) 小部件 |
+| **Widget Default** | **已同步当前产品**：官方 conky.conf 风格（Info 滚动行、$hr 分隔线、Uptime/Frequency/RAM/Swap/CPU 条、温度、进程、磁盘、网络、Top 表格 3 行） |
+| **Desktop Scene** | 1920×1080 渐变背景 + 右上角官方风格小部件（与 Widget Default 同内容） |
 | **Settings Window**（常规） | 刷新间隔 / 点击穿透 / 开机自启 / 显示器（运行时开关） |
-| **Settings 配置** | conky.conf 文件编辑器：26 行完整示例（Consolas、own_window 系列、参数化 bar、`${color grey}`）、行号、语法高亮、垂直滚动条、工具栏（撤销/重做/查找/保存） |
-| **Settings 关于** | Logo「D」、版本 v0.1.0、MIT/配置路径/主页/版权 |
+| **Settings 配置** | **已同步当前产品**：配置库管理 UI（说明文案 + 按钮行 导入配置…/设为当前/重命名/删除/用记事本编辑 + 配置列表，当前配置高亮带「当前」徽章） |
+| **Settings 关于** | Logo「D」、版本 v0.1.0、MIT/配置目录（%APPDATA%\DeskMeter\configs）/主页/版权 |
 | **Tray Interaction** | 底部任务栏 + 系统托盘图标「D」+ 弹出菜单（配置▶/设置…/退出；编辑配置…、刷新、开机自启已按用户决策从托盘移除） |
 
 三页设置窗口统一高度 **660**。
+
+**应用已按设计稿样式重构**（dev 分支）：SettingsWindow 改为自定义标题栏（D 图标 + DeskMeter 设置 + v0.1.0 徽章 + 关闭按钮）+ 左侧导航（常规/配置/关于，Segoe MDL2 图标 + 选中高亮）+ 底部操作栏（恢复默认/取消/保存，primary/secondary 按钮），配色=设计变量深色模式（bg #12141A / surface #1C1F26 / border #2A2E37 / text #F2F3F5 / primary #4C8DFF）；恢复默认按钮已接线（写回内置 samples 配置）；托盘双击打开记事本已移除（用户决策）。PrintWindow 验证常规页渲染正确。
 
 **Pixso 环境限制**（已知）：仅 Noto Sans SC 字体；变量无模式切换 API（设计稿用浅色主题）；SVG 内嵌色无法绑变量。
 
