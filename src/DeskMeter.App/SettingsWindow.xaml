@@ -1,7 +1,7 @@
 <Window x:Class="DeskMeter.App.SettingsWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="DeskMeter 设置" Width="720" Height="660"
+        Title="DeskMeter 设置" Width="720" Height="520"
         WindowStartupLocation="CenterScreen" WindowStyle="None" ResizeMode="NoResize"
         AllowsTransparency="True" Background="Transparent">
 
