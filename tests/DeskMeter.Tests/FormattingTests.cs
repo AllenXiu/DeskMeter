@@ -41,7 +41,7 @@ public class FormattingTests
     public void ColorParser_Hex_Named_Palette()
     {
         Assert.Equal(new WidgetBrush(0x88, 0xCC, 0xFF), ColorParser.Parse("#88CCFF"));
-        Assert.Equal(new WidgetBrush(0x80, 0x80, 0x80), ColorParser.Parse("grey"));
+        Assert.Equal(new WidgetBrush(0xBE, 0xBE, 0xBE), ColorParser.Parse("grey")); // X11/Conky grey = 190
         Assert.Equal(new WidgetBrush(0x88, 0xCC, 0xFF), ColorParser.Parse("0", TestHelpers.Settings()));
         Assert.Equal(new WidgetBrush(0xFF, 0xFF, 0xFF), ColorParser.Parse("", TestHelpers.Settings()));
     }

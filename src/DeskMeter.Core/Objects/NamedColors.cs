@@ -33,6 +33,11 @@ public static class NamedColors
                 if (!d.ContainsKey(grey)) d[grey] = pair.Value;
             }
         }
+
+        // 修正：.NET KnownColor.Gray=128 是 Windows 系统灰，与 X11/Conky 的 gray/grey=190 不一致
+        // （Conky color-names.yml: "gray": [190,190,190]）。其余灰色族（lightgrey=211 等）已与 X11 一致。
+        d["gray"] = new WidgetBrush(190, 190, 190);
+        d["grey"] = new WidgetBrush(190, 190, 190);
         return d;
     }
 }
