@@ -2,6 +2,7 @@ using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Text;
 using System.Windows.Forms;
+using DeskMeter.Core.Config;
 
 namespace DeskMeter.App;
 
@@ -14,12 +15,15 @@ public sealed class TrayIcon : IDisposable
     private readonly NotifyIcon _icon;
     private readonly WidgetWindow _window;
     private readonly string _configPath;
+    private readonly ConfigManager _configs;
     private readonly ToolStripMenuItem _autostartItem;
+    private readonly ToolStripMenuItem _configMenu;
 
-    public TrayIcon(WidgetWindow window, string configPath)
+    public TrayIcon(WidgetWindow window, string configPath, ConfigManager configs)
     {
         _window = window;
         _configPath = configPath;
+        _configs = configs;
 
         _icon = new NotifyIcon
         {
@@ -29,7 +33,9 @@ public sealed class TrayIcon : IDisposable
         };
 
         var settings = new ToolStripMenuItem("设置…");
-        settings.Click += (_, _) => SettingsLauncher.Open(_configPath);
+        settings.Click += (_, _) => SettingsLauncher.Open(_configPath, _configs);
+
+        _configMenu = new ToolStripMenuItem("配置▶");
 
         var edit = new ToolStripMenuItem("编辑配置…");
         edit.Click += (_, _) => OpenConfigEditor();
@@ -49,14 +55,72 @@ public sealed class TrayIcon : IDisposable
         var menu = new ContextMenuStrip();
         menu.Items.AddRange(new ToolStripItem[]
         {
-            settings, edit, refresh, _autostartItem,
+            _configMenu, settings, edit, refresh, _autostartItem,
             new ToolStripSeparator(),
             exit,
         });
-        // 与设置窗口联动：每次弹出菜单时以注册表为准刷新勾选状态
-        menu.Opening += (_, _) => _autostartItem.Checked = Autostart.IsEnabled();
+        // 每次弹出菜单：刷新开机自启勾选 + 重建配置子菜单
+        menu.Opening += (_, _) =>
+        {
+            _autostartItem.Checked = Autostart.IsEnabled();
+            RebuildConfigMenu();
+        };
         _icon.ContextMenuStrip = menu;
         _icon.DoubleClick += (_, _) => OpenConfigEditor();
+    }
+
+    /// <summary>重建"配置▶"子菜单：列出配置库，勾选当前项，点击切换；附"导入配置…"。</summary>
+    private void RebuildConfigMenu()
+    {
+        _configMenu.DropDownItems.Clear();
+        try
+        {
+            var currentName = _configs.Current()?.Name;
+            foreach (var entry in _configs.List())
+            {
+                var item = new ToolStripMenuItem(entry.Name)
+                {
+                    Checked = string.Equals(entry.Name, currentName, StringComparison.OrdinalIgnoreCase),
+                };
+                item.Click += (_, _) => SwitchTo(entry);
+                _configMenu.DropDownItems.Add(item);
+            }
+        }
+        catch { }
+
+        if (_configMenu.DropDownItems.Count > 0)
+            _configMenu.DropDownItems.Add(new ToolStripSeparator());
+        var import = new ToolStripMenuItem("导入配置…");
+        import.Click += (_, _) => ImportConfig();
+        _configMenu.DropDownItems.Add(import);
+    }
+
+    private void SwitchTo(ConfigEntry entry)
+    {
+        if (_configs.SetCurrent(entry))
+            _window.SwitchConfig(entry.Path);
+    }
+
+    private void ImportConfig()
+    {
+        try
+        {
+            using var dialog = new System.Windows.Forms.OpenFileDialog
+            {
+                Title = "导入 DeskMeter 配置",
+                Filter = "Conky 配置 (*.conf)|*.conf|所有文件 (*.*)|*.*",
+            };
+            if (dialog.ShowDialog() != System.Windows.Forms.DialogResult.OK) return;
+            var entry = _configs.Import(dialog.FileName);
+            if (entry is null)
+            {
+                System.Windows.Forms.MessageBox.Show("导入失败", "DeskMeter",
+                    System.Windows.Forms.MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Warning);
+                return;
+            }
+            SwitchTo(entry);
+        }
+        catch { }
     }
 
     private void OpenConfigEditor()

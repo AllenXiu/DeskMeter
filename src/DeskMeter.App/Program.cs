@@ -2,6 +2,7 @@ using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Threading;
+using DeskMeter.Core.Config;
 
 namespace DeskMeter.App;
 
@@ -28,7 +29,16 @@ internal static class Program
             e.Handled = true;
         };
 
-        var window = new WidgetWindow(options.ConfigPath);
+        // 多配置：--config 优先；否则用配置库当前配置（首次自动导入 samples 为"默认"）
+        var configManager = new ConfigManager();
+        var configPath = options.ConfigPath;
+        if (!options.HasExplicitConfig)
+        {
+            var sample = System.IO.Path.Combine(AppContext.BaseDirectory, "samples", "conky.conf");
+            configPath = configManager.EnsureDefault(sample)?.Path ?? configPath;
+        }
+
+        var window = new WidgetWindow(configPath);
         if (options.SmokeTest)
         {
             var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2.5) };
@@ -36,10 +46,10 @@ internal static class Program
             timer.Start();
         }
 
-        // 系统托盘（P2）：编辑配置… / 刷新 / 开机自启 / 退出
-        using var tray = new TrayIcon(window, options.ConfigPath);
+        // 系统托盘（P2）：配置▶ / 设置… / 编辑配置… / 刷新 / 开机自启 / 退出
+        using var tray = new TrayIcon(window, configPath, configManager);
 
-        if (options.OpenSettings) SettingsLauncher.Open(options.ConfigPath);
+        if (options.OpenSettings) SettingsLauncher.Open(configPath, configManager);
 
         app.Run(window);
         return 0;

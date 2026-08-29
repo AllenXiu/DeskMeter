@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.IO;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Navigation;
 using DeskMeter.Core.Config;
 using DeskMeter.Core.Objects;
@@ -13,13 +14,18 @@ namespace DeskMeter.App;
 /// </summary>
 public partial class SettingsWindow : Window
 {
-    private readonly string _configPath;
+    private string _configPath;
+    private readonly ConfigManager _configs;
     private readonly ConfigSettings _settings;
+    private ConfigEntry? _selected;
 
-    public SettingsWindow(string configPath)
+    public SettingsWindow(string configPath) : this(configPath, new ConfigManager()) { }
+
+    public SettingsWindow(string configPath, ConfigManager configs)
     {
         InitializeComponent();
         _configPath = configPath;
+        _configs = configs;
 
         ConfigSettings? settings = null;
         try
@@ -46,6 +52,108 @@ public partial class SettingsWindow : Window
         AboutConfigPath.Text = full;
         EditorConfigPath.Text = full;
         AboutVersionText.Text = "版本 " + VariableEvaluator.Version.Replace("DeskMeter ", "v");
+
+        RefreshConfigList();
+    }
+
+    private void RefreshConfigList()
+    {
+        var current = _configs.Current()?.Name;
+        var selected = _selected?.Name;
+        ConfigList.Items.Clear();
+        foreach (var entry in _configs.List())
+        {
+            var item = new ListBoxItem
+            {
+                Content = entry.Name,
+                Tag = entry,
+                FontWeight = string.Equals(entry.Name, current, StringComparison.OrdinalIgnoreCase)
+                    ? FontWeights.Bold : FontWeights.Normal,
+            };
+            ConfigList.Items.Add(item);
+        }
+        if (selected is not null)
+        {
+            foreach (var item in ConfigList.Items.OfType<ListBoxItem>())
+                if (string.Equals(item.Tag?.ToString(), selected, StringComparison.OrdinalIgnoreCase))
+                    ConfigList.SelectedItem = item;
+        }
+        else if (ConfigList.Items.Count > 0)
+        {
+            ConfigList.SelectedIndex = 0;
+        }
+    }
+
+    private void OnConfigSelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        _selected = (ConfigList.SelectedItem as System.Windows.Controls.ListBoxItem)?.Tag as ConfigEntry;
+    }
+
+    private void OnConfigDoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        if (_selected is not null) SwitchConfig(_selected);
+    }
+
+    private void OnSwitchConfig(object sender, RoutedEventArgs e)
+    {
+        if (_selected is not null) SwitchConfig(_selected);
+    }
+
+    private void SwitchConfig(ConfigEntry entry)
+    {
+        if (_configs.SetCurrent(entry))
+        {
+            _configPath = entry.Path;
+            EditorConfigPath.Text = entry.Path;
+            RefreshConfigList();
+        }
+    }
+
+    private void OnImportConfig(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var dialog = new Microsoft.Win32.OpenFileDialog
+            {
+                Title = "导入 DeskMeter 配置",
+                Filter = "Conky 配置 (*.conf)|*.conf|所有文件 (*.*)|*.*",
+            };
+            if (dialog.ShowDialog(this) != true) return;
+            var defaultName = System.IO.Path.GetFileNameWithoutExtension(dialog.FileName);
+            var name = InputDialog.Ask(this, "导入配置", "配置名称：", defaultName);
+            if (string.IsNullOrWhiteSpace(name)) name = defaultName;
+            var entry = _configs.Import(dialog.FileName, name);
+            if (entry is null)
+            {
+                MessageBox.Show(this, "导入失败", "DeskMeter", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+            SwitchConfig(entry);
+        }
+        catch { }
+    }
+
+    private void OnRenameConfig(object sender, RoutedEventArgs e)
+    {
+        if (_selected is null) return;
+        var name = InputDialog.Ask(this, "重命名配置", "新名称：", _selected.Name);
+        if (string.IsNullOrWhiteSpace(name) || name == _selected.Name) return;
+        if (_configs.Rename(_selected, name))
+            RefreshConfigList();
+        else
+            MessageBox.Show(this, "重命名失败（名称可能已存在）", "DeskMeter", MessageBoxButton.OK, MessageBoxImage.Warning);
+    }
+
+    private void OnDeleteConfig(object sender, RoutedEventArgs e)
+    {
+        if (_selected is null) return;
+        if (MessageBox.Show(this, $"删除配置「{_selected.Name}」？", "DeskMeter",
+                MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+        if (_configs.Delete(_selected))
+        {
+            _selected = null;
+            RefreshConfigList();
+        }
     }
 
     private void OnOpenExternalEditor(object sender, RoutedEventArgs e)

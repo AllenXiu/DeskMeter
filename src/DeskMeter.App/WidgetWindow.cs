@@ -21,7 +21,7 @@ public sealed class WidgetWindow : Window
     private readonly SystemDataCollector _collector = new();
     private readonly DispatcherTimer _timer;
     private readonly DispatcherTimer _reloadDebounce;
-    private readonly string _configPath;
+    private string _configPath;
     private FileSystemWatcher? _watcher;
 
     private ConfigSettings _settings;
@@ -65,6 +65,21 @@ public sealed class WidgetWindow : Window
         // 鼠标事件（FR-LATER）：deskmeter.click_through = false 时小部件可点击，单击打开设置
         MouseLeftButtonUp += (_, _) => SettingsLauncher.Open(_configPath);
         Refresh();
+    }
+
+    /// <summary>热切换配置（多配置管理）：换 watcher → 重新加载 → 刷新。</summary>
+    public void SwitchConfig(string path)
+    {
+        try { _watcher?.Dispose(); } catch { }
+        _watcher = null;
+        _configPath = path;
+        LoadConfig();
+        _timer.Interval = TimeSpan.FromSeconds(_settings.GetUpdateInterval(2.0));
+        ApplyDesktopWindowStyles();
+        if (!_settings.GetBool("disable_auto_reload", false))
+            StartConfigWatcher();
+        Refresh();
+        System.Diagnostics.Debug.WriteLine("DeskMeter switched config: " + path);
     }
 
     private void StartConfigWatcher()

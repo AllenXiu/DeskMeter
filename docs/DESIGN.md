@@ -246,7 +246,7 @@ Linux 专属对象（`acpi*`、`apm*`、`apcupsd*`、`battery`、`hddtemp`、`pl
 | 音乐控制 | `${mpc title}` / `${mpc artist}`（MPD）；Spotify 等可用 `${exec playerctl ...}` | P2 |
 | 托盘图标 | 常驻托盘，右键菜单（刷新、设置、编辑配置、退出） | P2 |
 | 开机自启 | 注册启动项 | P2 |
-| 主题 | 预设配色/字体组合一键切换 | P2 |
+| 多配置管理 | 导入多个 conky.conf、命名、切换当前配置（替代原"主题"方案，用户决策取消主题） | P2 |
 | Linux | 同配置格式，/proc + lm-sensors 数据源 | Future |
 
 ---
@@ -361,7 +361,7 @@ DeskMeter/
 |---|---|---|
 | **P0** ✅（dev 分支，2025 完成） | ① 配置引擎（MoonSharp Lua 解析 conky.conf）② 透明置底窗口 ③ 对象树基础文本渲染 ④ 定时刷新 | FR-VAR-1/2/3、FR-WIN-1/2、FR-CFG-1/2/3 全过 |
 | **P1** | ① Bar/Graph 矢量控件（参数化语法）② 颜色（#hex / colorN / 命名颜色）③ `${exec}` / `${execpi}` 异步 ④ 热重载 ⑤ 布局对象（alignr / goto / hr / scroll） | FR-VIZ-1/2、FR-RELOAD-1/2、FR-LATER.exec |
-| **P2** | ① 温度（LibreHardwareMonitor）② Top 进程 ③ 鼠标事件 ④ 托盘 ⑤ 自启 ⑥ 多显示器 ⑦ 主题 ⑧ 设置界面（GUI） | FR-LATER 全过、FR-SET 全过 |
+| **P2** | ① 温度（LibreHardwareMonitor）② Top 进程 ③ 鼠标事件 ④ 托盘 ⑤ 自启 ⑥ 多显示器 ⑦ 多配置管理（用户决策：取消主题，改为导入/命名/切换多份配置）⑧ 设置界面（GUI） | FR-LATER 全过、FR-SET 全过 |
 | **Future** | 跨平台（暂不计划；渲染后端已抽象，如需 Linux 可迁移 Avalonia） | — |
 
 ---

@@ -46,17 +46,33 @@
                 </Grid>
             </TabItem>
 
-            <!-- 配置（内置编辑器已弃用：用系统文本编辑器打开，保存后热重载自动生效） -->
+            <!-- 配置（多配置管理：导入/切换/重命名/删除；编辑走系统记事本） -->
             <TabItem Header="配置">
-                <StackPanel Margin="24,20">
-                    <TextBlock Text="配置文件使用系统文本编辑器（记事本）编辑：" Foreground="#D4D4D4" />
-                    <TextBlock x:Name="EditorConfigPath" Foreground="#9CDCFE" TextWrapping="Wrap" Margin="0,8,0,0" />
-                    <TextBlock Text="保存文件后，小部件会在 1 秒内自动热重载（桌面即预览）。" Foreground="#858585" TextWrapping="Wrap" Margin="0,12,0,0" />
-                    <StackPanel Orientation="Horizontal" Margin="0,20,0,0">
-                        <Button Content="用系统编辑器打开" Click="OnOpenExternalEditor" Width="150" Padding="8,4" />
-                        <Button Content="恢复默认" Click="OnRestoreDefault" Width="90" Padding="8,4" Margin="12,0,0,0" />
-                    </StackPanel>
-                </StackPanel>
+                <Grid Margin="12,8">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <Grid Grid.Row="0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <ListBox x:Name="ConfigList" Grid.Column="0"
+                                 Background="#1E1E1E" Foreground="#D4D4D4" BorderBrush="#3F3F46"
+                                 SelectionChanged="OnConfigSelectionChanged"
+                                 MouseDoubleClick="OnConfigDoubleClick" />
+                        <StackPanel Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Top">
+                            <Button Content="导入配置…" Click="OnImportConfig" Width="110" Padding="8,4" Margin="0,0,0,8" />
+                            <Button Content="设为当前" Click="OnSwitchConfig" Width="110" Padding="8,4" Margin="0,0,0,8" />
+                            <Button Content="重命名" Click="OnRenameConfig" Width="110" Padding="8,4" Margin="0,0,0,8" />
+                            <Button Content="删除" Click="OnDeleteConfig" Width="110" Padding="8,4" Margin="0,0,0,8" />
+                            <Button Content="用记事本编辑" Click="OnOpenExternalEditor" Width="110" Padding="8,4" Margin="0,0,0,8" />
+                        </StackPanel>
+                    </Grid>
+                    <TextBlock x:Name="EditorConfigPath" Grid.Row="1" Foreground="#9CDCFE" TextWrapping="Wrap" Margin="0,8,0,0" />
+                    <TextBlock Grid.Row="1" Text="当前配置以粗体显示；切换后小部件立即热重载。" Foreground="#858585" Margin="0,8,0,0" HorizontalAlignment="Right" />
+                </Grid>
             </TabItem>
 
             <!-- 关于 -->

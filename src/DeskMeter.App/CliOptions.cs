@@ -7,6 +7,9 @@ public sealed class CliOptions
 {
     public string ConfigPath { get; private set; } = DefaultConfigPath();
 
+    /// <summary>是否显式传入了 --config（否则用配置库当前配置）。</summary>
+    public bool HasExplicitConfig { get; private set; }
+
     /// <summary>wpf = 透明桌面小部件；console = 一次性渲染到 stdout（无头验证用）。</summary>
     public string Backend { get; private set; } = "wpf";
 
@@ -25,6 +28,7 @@ public sealed class CliOptions
             {
                 case "--config" when i + 1 < args.Length:
                     o.ConfigPath = Path.GetFullPath(args[++i]);
+                    o.HasExplicitConfig = true;
                     break;
                 case "--backend" when i + 1 < args.Length:
                     o.Backend = args[++i].ToLowerInvariant();
