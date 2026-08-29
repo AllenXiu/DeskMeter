@@ -1,10 +1,9 @@
 name: CI
 
+# 只在 PR 时运行构建+测试（用户决策：dev/main 日常推送不触发任何流水线；
+# 发布只由 v* 标签触发，见 release.yml）
 on:
-  push:
-    branches: [dev, main]
   pull_request:
-    branches: [dev, main]
 
 jobs:
   build-test:
