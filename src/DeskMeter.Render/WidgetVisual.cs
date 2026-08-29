@@ -86,6 +86,10 @@ public sealed class WidgetVisual : FrameworkElement
             + Math.Max(0, _layout.Lines.Count - 1) * _options.LineGap
             + _options.Padding * 2;
 
+        // Conky text_size 语义：宽度 = max(minimum_width, min(内容宽, maximum_width))
+        var widgetWidth = WidgetMetrics.ClampWidth(maxWidth, _options.MinimumWidth, _options.MaximumWidth);
+        var widgetHeight = Math.Max(totalHeight, _options.MinimumHeight);
+
         using (var dc = _visual.RenderOpen())
         {
             var y = _options.Padding;
@@ -98,7 +102,7 @@ public sealed class WidgetVisual : FrameworkElement
                     var ruleBrush = line.RuleBrush is { } rb ? ToBrush(rb) : brush;
                     var pen = new Pen(ruleBrush, 1);
                     dc.DrawLine(pen, new Point(_options.Padding, y + lineHeight / 2),
-                        new Point(_options.Padding + Math.Max(maxWidth, _options.Padding * 2), y + lineHeight / 2));
+                        new Point(_options.Padding + Math.Max(widgetWidth, _options.Padding * 2), y + lineHeight / 2));
                 }
                 else
                 {
@@ -117,8 +121,8 @@ public sealed class WidgetVisual : FrameworkElement
                             }
                             case WidgetBar bar:
                             {
-                                // Conky 语义：Width=0 → 填满本行剩余宽度
-                                var w = bar.Width > 0 ? bar.Width : Math.Max(0, maxWidth - x);
+                                // Conky 语义：Width=0 → 填满本行剩余宽度（以 clamped 后的窗口宽度为准）
+                                var w = bar.Width > 0 ? bar.Width : Math.Max(0, widgetWidth - x);
                                 var h = bar.Height;
                                 DrawBar(dc, x, y + (lineHeight - h) / 2, w, h, bar.Brush, bar.Percent);
                                 x += w;
@@ -132,8 +136,8 @@ public sealed class WidgetVisual : FrameworkElement
         }
 
         _measured = new Size(
-            Math.Max(maxWidth, 1) + _options.Padding * 2,
-            Math.Max(totalHeight, 1));
+            Math.Max(widgetWidth, 1) + _options.Padding * 2,
+            Math.Max(widgetHeight, 1));
     }
 
     /// <summary>

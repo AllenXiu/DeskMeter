@@ -69,4 +69,32 @@ public sealed class ConfigSettings
         var v = GetNumber("update_interval", fallback);
         return v > 0 ? v : fallback;
     }
+
+    /// <summary>
+    /// minimum_size：Conky 语义为 "宽[,高]"，单值则宽=高（支持数值或 "200,100" 字符串）。
+    /// </summary>
+    public (double Width, double Height) GetMinimumSize()
+    {
+        var raw = GetString("minimum_size");
+        if (!string.IsNullOrWhiteSpace(raw))
+        {
+            var parts = raw.Split(',', StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length >= 1 && double.TryParse(parts[0].Trim(),
+                    System.Globalization.NumberStyles.Any,
+                    System.Globalization.CultureInfo.InvariantCulture, out var w))
+            {
+                var h = w;
+                if (parts.Length >= 2 && double.TryParse(parts[1].Trim(),
+                        System.Globalization.NumberStyles.Any,
+                        System.Globalization.CultureInfo.InvariantCulture, out var h2))
+                    h = h2;
+                return (w, h);
+            }
+        }
+        var num = GetNumber("minimum_size", 0);
+        return (num, num);
+    }
+
+    /// <summary>use_spacer：none（默认）/ left / right（Conky：给可变宽字段补空格防抖动）。</summary>
+    public string GetUseSpacer() => (GetString("use_spacer") ?? "none").Trim().ToLowerInvariant();
 }

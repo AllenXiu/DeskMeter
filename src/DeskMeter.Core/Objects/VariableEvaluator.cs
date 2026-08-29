@@ -12,11 +12,17 @@ public static class VariableEvaluator
 {
     public const string Version = "DeskMeter 0.1.0";
 
+    /// <summary>Conky spaced_print 宽度：人类可读字节 7、百分比 3。</summary>
+    private const int HumanWidth = 7;
+    private const int PercentWidth = 3;
+
     public static string? Evaluate(string name, string[] args, SystemSnapshot data, ConfigSettings settings)
     {
         var key = name.ToLowerInvariant();
         var a = args ?? Array.Empty<string>();
         string Arg(int i) => i < a.Length ? a[i] : string.Empty;
+        string Human(double bytes) => Spacer(HumanBytes.Format(bytes), settings, HumanWidth);
+        string Percent(double p) => Spacer(FormatPercent(p), settings, PercentWidth);
 
         switch (key)
         {
@@ -33,35 +39,35 @@ public static class VariableEvaluator
             case "cpu":
             {
                 // 单核（$cpu N）P1 细化；P0 输出总占用
-                return FormatPercent(data.CpuPercent);
+                return Percent(data.CpuPercent);
             }
             case "cpubar": return null; // 由 BarNode 处理；此处兜底
             case "cpugraph": return null;
 
-            case "mem": return HumanBytes.Format(data.MemUsedBytes);
-            case "memmax": return HumanBytes.Format(data.MemTotalBytes);
-            case "memperc": return FormatPercent(data.MemPercent);
+            case "mem": return Human(data.MemUsedBytes);
+            case "memmax": return Human(data.MemTotalBytes);
+            case "memperc": return Percent(data.MemPercent);
             case "membar": return null;
 
-            case "swap": return HumanBytes.Format(data.SwapUsedBytes);
-            case "swapmax": return HumanBytes.Format(data.SwapTotalBytes);
-            case "swapperc": return FormatPercent(data.SwapPercent);
+            case "swap": return Human(data.SwapUsedBytes);
+            case "swapmax": return Human(data.SwapTotalBytes);
+            case "swapperc": return Percent(data.SwapPercent);
             case "swapbar": return null;
 
-            case "fs_used": return HumanBytes.Format(data.GetDisk(Arg(0)).Used);
-            case "fs_free": return HumanBytes.Format(data.GetDisk(Arg(0)).Free);
-            case "fs_size": return HumanBytes.Format(data.GetDisk(Arg(0)).Total);
-            case "fs_free_perc": return FormatPercent(data.GetDisk(Arg(0)).FreePercent);
-            case "fs_used_perc": return FormatPercent(100 - data.GetDisk(Arg(0)).FreePercent);
+            case "fs_used": return Human(data.GetDisk(Arg(0)).Used);
+            case "fs_free": return Human(data.GetDisk(Arg(0)).Free);
+            case "fs_size": return Human(data.GetDisk(Arg(0)).Total);
+            case "fs_free_perc": return Percent(data.GetDisk(Arg(0)).FreePercent);
+            case "fs_used_perc": return Percent(100 - data.GetDisk(Arg(0)).FreePercent);
             case "fs_bar": return null;
             case "fs_type": return "NTFS";
 
-            case "downspeed": return HumanBytes.Format(data.DownSpeedBytesPerSec) + "/s";
-            case "upspeed": return HumanBytes.Format(data.UpSpeedBytesPerSec) + "/s";
+            case "downspeed": return Human(data.DownSpeedBytesPerSec) + "/s";
+            case "upspeed": return Human(data.UpSpeedBytesPerSec) + "/s";
             case "downspeedf": return data.DownSpeedBytesPerSec.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
             case "upspeedf": return data.UpSpeedBytesPerSec.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
-            case "totaldown": return HumanBytes.Format(data.TotalDownBytes);
-            case "totalup": return HumanBytes.Format(data.TotalUpBytes);
+            case "totaldown": return Human(data.TotalDownBytes);
+            case "totalup": return Human(data.TotalUpBytes);
 
             case "processes": return data.ProcessCount.ToString();
             case "running_processes": return data.RunningProcessCount.ToString();
@@ -106,5 +112,22 @@ public static class VariableEvaluator
         // Conky 语义：$cpu / $memperc 等输出纯数字，% 由配置中的字面量追加
         p = Math.Clamp(p, 0, 100);
         return p.ToString("0", System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    /// <summary>
+    /// use_spacer（Conky spaced_print）：left = 右侧补齐（右对齐），right = 左侧补齐（左对齐）。
+    /// none 时原样输出。用于固定可变宽字段，防止刷新时布局/窗口宽度抖动。
+    /// </summary>
+    private static string Spacer(string value, ConfigSettings settings, int width)
+    {
+        switch (settings.GetUseSpacer())
+        {
+            case "left":
+                return value.Length < width ? value.PadLeft(width) : value;
+            case "right":
+                return value.Length < width ? value.PadRight(width) : value;
+            default:
+                return value;
+        }
     }
 }
