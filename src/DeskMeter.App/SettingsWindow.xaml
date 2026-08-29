@@ -5,23 +5,23 @@
         WindowStartupLocation="CenterScreen" WindowStyle="None" ResizeMode="NoResize"
         AllowsTransparency="True" Background="Transparent">
 
-    <!-- Pixso 设计稿样式（Settings Window / 配置 / 关于 三帧）：
-         深色主题 bg=#12141A surface=#1C1F26 border=#2A2E37 textPrimary=#F2F3F5
-         primary=#4C8DFF；自定义标题栏 + 左侧导航 + 底部操作栏 -->
+    <!-- Pixso 设计稿样式（Settings Window / 配置 / 关于 三帧，浅色模式 mode 2:1）：
+         bg=#F7F8FA surface=#FFFFFF border=#E6E8EB textPrimary=#1F2329
+         primary=#2563EB primarySoft=#EFF4FF；自定义标题栏 + 左侧导航 + 底部操作栏 -->
     <Window.Resources>
-        <SolidColorBrush x:Key="BgBrush" Color="#12141A" />
-        <SolidColorBrush x:Key="SurfaceBrush" Color="#1C1F26" />
-        <SolidColorBrush x:Key="BorderBrush2" Color="#2A2E37" />
-        <SolidColorBrush x:Key="TextPrimaryBrush" Color="#F2F3F5" />
-        <SolidColorBrush x:Key="TextSecondaryBrush" Color="#AEB4BF" />
-        <SolidColorBrush x:Key="TextTertiaryBrush" Color="#7E8594" />
-        <SolidColorBrush x:Key="PrimaryBrush" Color="#4C8DFF" />
-        <SolidColorBrush x:Key="PrimarySoftBrush" Color="#24324A" />
+        <SolidColorBrush x:Key="BgBrush" Color="#F7F8FA" />
+        <SolidColorBrush x:Key="SurfaceBrush" Color="#FFFFFF" />
+        <SolidColorBrush x:Key="BorderBrush2" Color="#E6E8EB" />
+        <SolidColorBrush x:Key="TextPrimaryBrush" Color="#1F2329" />
+        <SolidColorBrush x:Key="TextSecondaryBrush" Color="#646A73" />
+        <SolidColorBrush x:Key="TextTertiaryBrush" Color="#8A919F" />
+        <SolidColorBrush x:Key="PrimaryBrush" Color="#2563EB" />
+        <SolidColorBrush x:Key="PrimarySoftBrush" Color="#EFF4FF" />
 
         <Style TargetType="Button" x:Key="BtnSecondary">
-            <Setter Property="Background" Value="#1C1F26" />
-            <Setter Property="Foreground" Value="#F2F3F5" />
-            <Setter Property="BorderBrush" Value="#2A2E37" />
+            <Setter Property="Background" Value="#FFFFFF" />
+            <Setter Property="Foreground" Value="#1F2329" />
+            <Setter Property="BorderBrush" Value="#E6E8EB" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="Padding" Value="16,0" />
             <Setter Property="Height" Value="36" />
@@ -38,10 +38,10 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="bd" Property="Background" Value="#242A35" />
+                                <Setter TargetName="bd" Property="Background" Value="#F1F3F6" />
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="bd" Property="Background" Value="#2A303C" />
+                                <Setter TargetName="bd" Property="Background" Value="#E7EBF2" />
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter TargetName="bd" Property="Opacity" Value="0.5" />
@@ -53,38 +53,38 @@
         </Style>
 
         <Style TargetType="Button" x:Key="BtnPrimary" BasedOn="{StaticResource BtnSecondary}">
-            <Setter Property="Background" Value="#4C8DFF" />
+            <Setter Property="Background" Value="#2563EB" />
             <Setter Property="Foreground" Value="#FFFFFF" />
-            <Setter Property="BorderBrush" Value="#4C8DFF" />
+            <Setter Property="BorderBrush" Value="#2563EB" />
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#6BA0FF" />
+                    <Setter Property="Background" Value="#4A86F5" />
                 </Trigger>
                 <Trigger Property="IsPressed" Value="True">
-                    <Setter Property="Background" Value="#3B7BE8" />
+                    <Setter Property="Background" Value="#1D54C9" />
                 </Trigger>
             </Style.Triggers>
         </Style>
 
         <Style TargetType="TextBox">
-            <Setter Property="Background" Value="#12141A" />
-            <Setter Property="Foreground" Value="#F2F3F5" />
-            <Setter Property="BorderBrush" Value="#2A2E37" />
-            <Setter Property="CaretBrush" Value="#F2F3F5" />
+            <Setter Property="Background" Value="#FFFFFF" />
+            <Setter Property="Foreground" Value="#1F2329" />
+            <Setter Property="BorderBrush" Value="#E6E8EB" />
+            <Setter Property="CaretBrush" Value="#1F2329" />
             <Setter Property="Padding" Value="8,4" />
             <Setter Property="FontSize" Value="13" />
         </Style>
 
         <Style TargetType="ComboBox">
-            <Setter Property="Background" Value="#12141A" />
-            <Setter Property="Foreground" Value="#F2F3F5" />
-            <Setter Property="BorderBrush" Value="#2A2E37" />
+            <Setter Property="Background" Value="#FFFFFF" />
+            <Setter Property="Foreground" Value="#1F2329" />
+            <Setter Property="BorderBrush" Value="#E6E8EB" />
             <Setter Property="Padding" Value="8,4" />
             <Setter Property="FontSize" Value="13" />
         </Style>
 
         <Style TargetType="CheckBox">
-            <Setter Property="Foreground" Value="#F2F3F5" />
+            <Setter Property="Foreground" Value="#1F2329" />
             <Setter Property="FontSize" Value="13" />
             <Setter Property="VerticalContentAlignment" Value="Center" />
         </Style>
@@ -92,7 +92,7 @@
         <Style TargetType="ListBoxItem">
             <Setter Property="Padding" Value="12,8" />
             <Setter Property="Margin" Value="2" />
-            <Setter Property="Foreground" Value="#F2F3F5" />
+            <Setter Property="Foreground" Value="#1F2329" />
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
             <Setter Property="Template">
@@ -104,10 +104,10 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="bd" Property="Background" Value="#242A35" />
+                                <Setter TargetName="bd" Property="Background" Value="#F1F3F6" />
                             </Trigger>
                             <Trigger Property="IsSelected" Value="True">
-                                <Setter TargetName="bd" Property="Background" Value="#24324A" />
+                                <Setter TargetName="bd" Property="Background" Value="#EFF4FF" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
