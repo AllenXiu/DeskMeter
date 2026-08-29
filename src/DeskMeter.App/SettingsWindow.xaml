@@ -46,19 +46,17 @@
                 </Grid>
             </TabItem>
 
-            <!-- 配置 -->
+            <!-- 配置（内置编辑器已弃用：用系统文本编辑器打开，保存后热重载自动生效） -->
             <TabItem Header="配置">
-                <Grid Margin="8">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="*" />
-                        <RowDefinition Height="Auto" />
-                    </Grid.RowDefinitions>
-                    <local:ConkyCodeEditor x:Name="Editor" Grid.Row="0" />
-                    <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,8,0,0">
-                        <TextBlock Text="修改后点「保存」即热重载生效（桌面即预览）" Foreground="#858585" VerticalAlignment="Center" Margin="0,0,12,0" />
-                        <Button Content="恢复默认" Click="OnRestoreDefault" Width="90" Padding="8,3" />
+                <StackPanel Margin="24,20">
+                    <TextBlock Text="配置文件使用系统文本编辑器（记事本）编辑：" Foreground="#D4D4D4" />
+                    <TextBlock x:Name="EditorConfigPath" Foreground="#9CDCFE" TextWrapping="Wrap" Margin="0,8,0,0" />
+                    <TextBlock Text="保存文件后，小部件会在 1 秒内自动热重载（桌面即预览）。" Foreground="#858585" TextWrapping="Wrap" Margin="0,12,0,0" />
+                    <StackPanel Orientation="Horizontal" Margin="0,20,0,0">
+                        <Button Content="用系统编辑器打开" Click="OnOpenExternalEditor" Width="150" Padding="8,4" />
+                        <Button Content="恢复默认" Click="OnRestoreDefault" Width="90" Padding="8,4" Margin="12,0,0,0" />
                     </StackPanel>
-                </Grid>
+                </StackPanel>
             </TabItem>
 
             <!-- 关于 -->

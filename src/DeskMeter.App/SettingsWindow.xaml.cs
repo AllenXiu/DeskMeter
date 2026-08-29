@@ -22,20 +22,15 @@ public partial class SettingsWindow : Window
         _configPath = configPath;
 
         ConfigSettings? settings = null;
-        string? content = null;
         try
         {
-            var cfg = new LuaConfigEngine().LoadFile(configPath);
-            settings = cfg.Settings;
-            content = cfg.LuaSource;
+            settings = new LuaConfigEngine().LoadFile(configPath).Settings;
         }
         catch
         {
-            try { content = File.ReadAllText(configPath); }
-            catch { content = DefaultConfig; }
+            // 配置非法时仍允许打开设置窗口（常规项照常可保存）
         }
         _settings = settings ?? new ConfigSettings(configPath, new Dictionary<string, object?>());
-        Editor.Text = content ?? DefaultConfig;
 
         IntervalBox.Text = _settings.GetUpdateInterval(2.0).ToString("0.##", CultureInfo.InvariantCulture);
         ClickThroughBox.IsChecked = _settings.GetBool("click_through", true);
@@ -49,7 +44,25 @@ public partial class SettingsWindow : Window
         var full = Path.GetFullPath(configPath);
         ConfigPathText.Text = full;
         AboutConfigPath.Text = full;
+        EditorConfigPath.Text = full;
         AboutVersionText.Text = "版本 " + VariableEvaluator.Version.Replace("DeskMeter ", "v");
+    }
+
+    private void OnOpenExternalEditor(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = "notepad.exe",
+                Arguments = _configPath,
+                UseShellExecute = true,
+            });
+        }
+        catch
+        {
+            // 无法打开时忽略
+        }
     }
 
     private void OnSave(object sender, RoutedEventArgs e)
@@ -64,7 +77,9 @@ public partial class SettingsWindow : Window
 
         var monitor = MonitorBox.SelectedIndex >= 0 ? MonitorBox.SelectedIndex : 0;
         var clickThrough = ClickThroughBox.IsChecked == true;
-        var content = ConfigWriteBack.Update(Editor.Text, interval, clickThrough, monitor);
+        // 配置内容以磁盘为准（用户用系统编辑器维护）；仅写回常规项
+        var current = File.ReadAllText(_configPath);
+        var content = ConfigWriteBack.Update(current, interval, clickThrough, monitor);
 
         try
         {
@@ -85,14 +100,17 @@ public partial class SettingsWindow : Window
 
     private void OnRestoreDefault(object sender, RoutedEventArgs e)
     {
+        // 恢复默认：把内置默认配置写回文件并热重载（不依赖编辑器）
         var path = Path.Combine(AppContext.BaseDirectory, "samples", "conky.conf");
+        var content = File.Exists(path) ? File.ReadAllText(path) : DefaultConfig;
         try
         {
-            Editor.Text = File.Exists(path) ? File.ReadAllText(path) : DefaultConfig;
+            File.WriteAllText(_configPath, content);
         }
-        catch
+        catch (Exception ex)
         {
-            Editor.Text = DefaultConfig;
+            MessageBox.Show(this, "恢复默认失败：" + ex.Message, "错误",
+                MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
