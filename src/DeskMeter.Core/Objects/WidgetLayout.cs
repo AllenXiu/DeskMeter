@@ -66,6 +66,32 @@ public sealed class WidgetBar : WidgetElement
     public double Width { get; }
 }
 
+/// <summary>
+/// 矢量曲线图元素（Conky graph 语义）：携带最近 N 个采样点序列；
+/// 高度/宽度为像素，Width=0 表示填满本行剩余宽度。
+/// </summary>
+public sealed class WidgetGraph : WidgetElement
+{
+    public WidgetGraph(IReadOnlyList<double> series, WidgetBrush brush, double height, double width)
+    {
+        Series = series;
+        Brush = brush;
+        Height = height;
+        Width = width;
+    }
+
+    /// <summary>采样序列（旧→新，FR-VIZ-2 默认最近 80 点）。</summary>
+    public IReadOnlyList<double> Series { get; }
+
+    public WidgetBrush Brush { get; }
+
+    /// <summary>像素高度。</summary>
+    public double Height { get; }
+
+    /// <summary>像素宽度；0 = 填满本行剩余宽度。</summary>
+    public double Width { get; }
+}
+
 /// <summary>${goto N}：把当前绘制位置跳到本行第 N 像素列（相对文本区起点，Conky GOTO 语义）。</summary>
 public sealed class WidgetGoto : WidgetElement
 {
@@ -128,6 +154,13 @@ public sealed class WidgetLayout
         line.Elements.Add(new WidgetGoto(x));
     }
 
+    public void AppendGraph(IReadOnlyList<double> series, WidgetBrush brush, double height, double width)
+    {
+        var line = CurrentLine;
+        if (line.IsRule) line = NewLine();
+        line.Elements.Add(new WidgetGraph(series, brush, height, width));
+    }
+
     public void AppendRule(WidgetBrush brush)
     {
         var line = NewLine();
@@ -167,10 +200,36 @@ public sealed class WidgetLayout
                         case WidgetGoto:
                             // Conky console 后端忽略 goto（仅 GUI 生效）
                             break;
+                        case WidgetGraph graph:
+                            sb.Append(GraphToTicks(graph));
+                            break;
                     }
                 }
             }
             sb.AppendLine();
+        }
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// 曲线图 console 回退：Conky console_graph_ticks（" ,_,=,#"，5 档），
+    /// 宽度 0 时用 40 列（GUI 才填满剩余宽度）。
+    /// </summary>
+    private static string GraphToTicks(WidgetGraph graph)
+    {
+        if (graph.Series.Count == 0) return string.Empty;
+        var ticks = new[] { ' ', ',', '_', '=', '#' };
+        var max = Math.Max(graph.Series.Max(), 1e-9);
+        var cols = graph.Width > 0
+            ? Math.Clamp((int)Math.Round(graph.Width / 12.0), 4, 80)
+            : 40;
+        var start = Math.Max(0, graph.Series.Count - cols);
+        var sb = new System.Text.StringBuilder();
+        for (var i = start; i < graph.Series.Count; i++)
+        {
+            var norm = graph.Series[i] / max;
+            var idx = Math.Clamp((int)(norm * (ticks.Length - 1)), 0, ticks.Length - 1);
+            sb.Append(ticks[idx]);
         }
         return sb.ToString();
     }

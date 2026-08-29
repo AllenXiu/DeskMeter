@@ -83,6 +83,41 @@ public class ConkyTextParserTests
     }
 
     [Fact]
+    public void Render_CpuGraph_EmitsWidgetGraphElement()
+    {
+        var nodes = ConkyTextParser.Parse("${cpugraph 32,260}", _registry, _settings);
+        var layout = Render(nodes);
+        var graph = Assert.IsType<WidgetGraph>(Assert.Single(layout.Lines[0].Elements));
+        Assert.Equal(32, graph.Height);
+        Assert.Equal(260, graph.Width);
+        var sample = Assert.Single(graph.Series);
+        Assert.Equal(12, sample); // FakeSnapshot.CpuPercent = 12
+    }
+
+    [Fact]
+    public void Render_CpuGraph_AccumulatesHistoryAcrossRefreshes()
+    {
+        var nodes = ConkyTextParser.Parse("${cpugraph 32}", _registry, _settings);
+        _ = Render(nodes); // 第 1 次采样
+        var layout = Render(nodes); // 第 2 次采样（同一节点实例保留历史）
+        var graph = Assert.IsType<WidgetGraph>(Assert.Single(layout.Lines[0].Elements));
+        Assert.Equal(2, graph.Series.Count);
+        Assert.Equal(0, graph.Width); // 宽度省略 → 填满剩余
+        Assert.Equal(32, graph.Height);
+    }
+
+    [Fact]
+    public void Render_GraphConsoleFallback_UsesConkyTicks()
+    {
+        var nodes = ConkyTextParser.Parse("${cpugraph 4}", _registry, _settings);
+        _ = Render(nodes);
+        var layout = Render(nodes);
+        var text = layout.ToConsoleText().TrimEnd();
+        Assert.NotEmpty(text);
+        Assert.All(text, c => Assert.Contains(c, " ,_,=#")); // Conky console_graph_ticks
+    }
+
+    [Fact]
     public void Render_UnknownVariable_ShowsPlaceholder()
     {
         var nodes = ConkyTextParser.Parse("$totally_unknown_xyz", _registry, _settings);

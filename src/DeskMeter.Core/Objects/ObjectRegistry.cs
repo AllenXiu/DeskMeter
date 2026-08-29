@@ -45,9 +45,14 @@ public sealed class ObjectRegistry
             return new BarNode(d => 100 - d.GetDisk(path).FreePercent, sizeArgs, s);
         });
 
+        // 曲线图（矢量 Graph，Conky 语义：高度[,宽度]，环形缓冲 80 点）
+        Register("cpugraph", (args, s) => new GraphNode(d => d.CpuPercent, args, s));
+        Register("downspeedgraph", (args, s) => new GraphNode(d => d.DownSpeedBytesPerSec, args, s));
+        Register("upspeedgraph", (args, s) => new GraphNode(d => d.UpSpeedBytesPerSec, args, s));
+
         // 一般变量（可变参数）
         string[] plain = ["hostname", "nodename", "sysname", "kernel", "machine", "conky_version",
-            "uptime", "time", "date", "cpu", "cpugraph", "mem", "memmax", "memperc",
+            "uptime", "time", "date", "cpu", "mem", "memmax", "memperc",
             "swap", "swapmax", "swapperc", "fs_used", "fs_free", "fs_size", "fs_free_perc",
             "fs_used_perc", "fs_type", "downspeed", "upspeed", "downspeedf", "upspeedf",
             "totaldown", "totalup", "processes", "running_processes", "freq", "freq_g",

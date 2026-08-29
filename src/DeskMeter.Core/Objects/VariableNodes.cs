@@ -158,6 +158,70 @@ public sealed class BarNode : ObjectNode
     }
 }
 
+/// <summary>
+/// 矢量曲线图节点（Conky graph 语义）：环形缓冲最近 MaxSamples 个采样点（FR-VIZ-2），
+/// 每次 Print 追加当前值并输出 WidgetGraph 元素；WPF 折线+面积渲染，console 用刻度字符回退。
+/// </summary>
+public sealed class GraphNode : ObjectNode
+{
+    /// <summary>FR-VIZ-2：曲线图滚动显示最近 N 个采样点（默认 80）。</summary>
+    private const int MaxSamples = 80;
+
+    private readonly Func<SystemSnapshot, double> _value;
+    private readonly double _height;
+    private readonly double _width;
+    private readonly double[] _samples = new double[MaxSamples];
+    private int _count;
+
+    /// <summary>Conky 默认：default_graph_height=25、default_graph_width=0（0 = 填满本行剩余宽度）。</summary>
+    public GraphNode(Func<SystemSnapshot, double> value, string[] args, ConfigSettings settings)
+    {
+        _value = value;
+        var defaultHeight = settings.GetNumber("default_graph_height", 25);
+        var defaultWidth = settings.GetNumber("default_graph_width", 0);
+        ParseHeightWidth(args, out var h, out var w);
+        _height = h > 0 ? h : defaultHeight;
+        _width = w > 0 ? w : defaultWidth;
+    }
+
+    /// <summary>解析 Conky 参数：\${graph 高度[,宽度]}（如 "32"、"32,260"；-t/-l/-x/-y/-m 旗标 P1 简化忽略）。</summary>
+    private static void ParseHeightWidth(string[] args, out double height, out double width)
+    {
+        height = 0;
+        width = 0;
+        if (args.Length == 0) return;
+
+        var first = args[0].Split(',', StringSplitOptions.RemoveEmptyEntries);
+        if (first.Length >= 1 && double.TryParse(first[0],
+                System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var h))
+            height = h;
+        if (first.Length >= 2 && double.TryParse(first[1],
+                System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var w))
+            width = w;
+        else if (args.Length >= 2 && double.TryParse(args[1],
+                System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var w2))
+            width = w2;
+    }
+
+    public override void Print(RenderContext ctx)
+    {
+        var v = _value(ctx.Data);
+        if (_count < MaxSamples)
+        {
+            _samples[_count++] = v;
+        }
+        else
+        {
+            Array.Copy(_samples, 1, _samples, 0, MaxSamples - 1);
+            _samples[MaxSamples - 1] = v;
+        }
+
+        var series = new double[_count];
+        Array.Copy(_samples, series, _count);
+        ctx.Layout.AppendGraph(series, ctx.CurrentBrush, _height, _width);
+    }
+}
+
 /// <summary>一般变量节点：委托 VariableEvaluator 求值，失败输出占位（FR-VAR-2）。</summary>
 public sealed class VariableNode : ObjectNode
 {

@@ -78,6 +78,10 @@ public sealed class WidgetVisual : FrameworkElement
                             // Conky：goto 位置计入行宽
                             if (g.X > w) w = g.X;
                             break;
+                        case WidgetGraph graph:
+                            if (graph.Width > 0) w += graph.Width;
+                            if (graph.Height > h) h = graph.Height;
+                            break;
                     }
                 }
             }
@@ -138,6 +142,14 @@ public sealed class WidgetVisual : FrameworkElement
                                 x = _options.Padding + g.X;
                                 break;
                             }
+                            case WidgetGraph graph:
+                            {
+                                var gw = graph.Width > 0 ? graph.Width : Math.Max(0, widgetWidth - x);
+                                var gh = graph.Height;
+                                DrawGraph(dc, x, y + (lineHeight - gh) / 2, gw, gh, graph.Brush, graph.Series);
+                                x += gw;
+                                break;
+                            }
                         }
                     }
                 }
@@ -168,6 +180,55 @@ public sealed class WidgetVisual : FrameworkElement
 
         // 描边（轨道：透明背景 + 当前色轮廓，与 Conky 一致）
         dc.DrawRoundedRectangle(null, pen, new Rect(x + 0.5, y + 0.5, w - 1, h - 1), radius, radius);
+    }
+
+    /// <summary>
+    /// 矢量曲线图（设计稿：折线 + 面积渐变填充）：按系列最大值自动缩放，折线为当前色。
+    /// </summary>
+    private static void DrawGraph(DrawingContext dc, double x, double y, double w, double h,
+        WidgetBrush color, IReadOnlyList<double> series)
+    {
+        if (w <= 1 || h <= 1 || series.Count == 0) return;
+        var max = Math.Max(series.Max(), 1e-9);
+        var pen = new Pen(ToBrush(color), 1);
+        var areaBrush = ToBrushWithAlpha(color, 0x38);
+
+        var points = new Point[series.Count];
+        for (var i = 0; i < series.Count; i++)
+        {
+            var px = x + (series.Count == 1 ? 0 : i / (double)(series.Count - 1)) * w;
+            var py = y + h - 1 - Math.Clamp(series[i] / max, 0, 1) * (h - 2);
+            points[i] = new Point(px, py);
+        }
+
+        // 面积填充（底边闭合）
+        var area = new StreamGeometry();
+        using (var g = area.Open())
+        {
+            g.BeginFigure(points[0], true, true);
+            for (var i = 1; i < points.Length; i++) g.LineTo(points[i], true, false);
+            g.LineTo(new Point(points[^1].X, y + h), true, false);
+            g.LineTo(new Point(points[0].X, y + h), true, false);
+        }
+        area.Freeze();
+        dc.DrawGeometry(areaBrush, null, area);
+
+        // 折线
+        var line = new StreamGeometry();
+        using (var g = line.Open())
+        {
+            g.BeginFigure(points[0], false, false);
+            for (var i = 1; i < points.Length; i++) g.LineTo(points[i], true, false);
+        }
+        line.Freeze();
+        dc.DrawGeometry(null, pen, line);
+    }
+
+    private static SolidColorBrush ToBrushWithAlpha(WidgetBrush b, byte alpha)
+    {
+        var brush = new SolidColorBrush(Color.FromArgb(alpha, b.R, b.G, b.B));
+        brush.Freeze();
+        return brush;
     }
 
     private static double Measure(string text, Typeface typeface, double size, double dpi)

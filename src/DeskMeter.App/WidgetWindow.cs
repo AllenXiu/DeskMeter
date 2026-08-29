@@ -1,3 +1,4 @@
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Interop;
@@ -19,7 +20,9 @@ public sealed class WidgetWindow : Window
     private readonly ObjectRegistry _registry = new();
     private readonly SystemDataCollector _collector = new();
     private readonly DispatcherTimer _timer;
+    private readonly DispatcherTimer _reloadDebounce;
     private readonly string _configPath;
+    private FileSystemWatcher? _watcher;
 
     private ConfigSettings _settings;
     private List<ObjectNode> _nodes = new();
@@ -47,8 +50,76 @@ public sealed class WidgetWindow : Window
         _timer.Tick += (_, _) => Refresh();
         _timer.Start();
 
+        // FR-RELOAD-1：配置文件变化后 1s 内自动重载（300ms 防抖）；disable_auto_reload 可关
+        _reloadDebounce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
+        _reloadDebounce.Tick += (_, _) =>
+        {
+            _reloadDebounce.Stop();
+            ReloadConfig();
+        };
+        if (!_settings.GetBool("disable_auto_reload", false))
+            StartConfigWatcher();
+
         SourceInitialized += (_, _) => ApplyDesktopWindowStyles();
         Refresh();
+    }
+
+    private void StartConfigWatcher()
+    {
+        try
+        {
+            var full = Path.GetFullPath(_configPath);
+            var dir = Path.GetDirectoryName(full);
+            var file = Path.GetFileName(full);
+            if (string.IsNullOrEmpty(dir) || string.IsNullOrEmpty(file)) return;
+
+            _watcher = new FileSystemWatcher(dir, file)
+            {
+                NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.Size | NotifyFilters.FileName,
+                EnableRaisingEvents = true,
+            };
+            _watcher.Changed += OnConfigFileChanged;
+            _watcher.Created += OnConfigFileChanged;
+            _watcher.Renamed += OnConfigFileChanged;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine("DeskMeter watcher error: " + ex);
+        }
+    }
+
+    private void OnConfigFileChanged(object sender, FileSystemEventArgs e)
+    {
+        // 事件来自线程池，回到 UI 线程做防抖
+        try
+        {
+            Dispatcher.BeginInvoke(() =>
+            {
+                _reloadDebounce.Stop();
+                _reloadDebounce.Start();
+            });
+        }
+        catch
+        {
+            // 窗口关闭后的竞态，忽略
+        }
+    }
+
+    /// <summary>FR-RELOAD-2：重载失败时保留旧配置运行（_settings/_nodes 仅在成功后替换）。</summary>
+    private void ReloadConfig()
+    {
+        try
+        {
+            LoadConfig();
+            _timer.Interval = TimeSpan.FromSeconds(_settings.GetUpdateInterval(2.0));
+            Refresh();
+            System.Diagnostics.Debug.WriteLine("DeskMeter config reloaded");
+        }
+        catch (ConkyConfigException ex)
+        {
+            // 配置非法：保留上一次成功配置（FR-CFG-3）
+            System.Diagnostics.Debug.WriteLine("DeskMeter reload failed, keeping old config: " + ex.Message);
+        }
     }
 
     private void LoadConfig()
@@ -122,6 +193,8 @@ public sealed class WidgetWindow : Window
 
     protected override void OnClosed(EventArgs e)
     {
+        _reloadDebounce.Stop();
+        _watcher?.Dispose();
         _collector.Dispose();
         base.OnClosed(e);
     }
