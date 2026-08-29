@@ -19,7 +19,7 @@ English | [中文](README_zh.md)
 
 ## Docs
 
-- [Variable reference (96 variables, Conky compatibility)](docs/VARIABLES.md)
+- [Variable reference (96 variables)](docs/VARIABLES.md) & [Conky coverage comparison](docs/CONKY_COMPAT.md) (429 vs 96)
 - [Design doc](docs/DESIGN.md)
 
 ## Install / Releases

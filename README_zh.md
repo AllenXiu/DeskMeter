@@ -19,7 +19,7 @@
 
 ## 文档
 
-- [变量/系统数据接口参考](docs/VARIABLES.md)（96 个变量，含 Conky 兼容说明）
+- [变量/系统数据接口参考](docs/VARIABLES.md)（96 个变量）与 [Conky 覆盖对比](docs/CONKY_COMPAT.md)（429 vs 96）
 - [设计文档](docs/DESIGN.md) 与 [会话交接总结](docs/SESSION_SUMMARY.md)
 
 ## 安装 / 发布
