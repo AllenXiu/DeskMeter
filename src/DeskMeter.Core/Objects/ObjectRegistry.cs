@@ -33,16 +33,16 @@ public sealed class ObjectRegistry
             Register("color" + idx, (_, settings) => new ColorNode(idx, settings));
         }
 
-        // 进度条（P0 文本占位，P1 矢量）
-        Register("cpubar", (args, _) => new BarNode(d => d.CpuPercent, args));
-        Register("membar", (args, _) => new BarNode(d => d.MemPercent, args));
-        Register("swapbar", (args, _) => new BarNode(d => d.SwapPercent, args));
-        Register("fs_bar", (args, _) =>
+        // 进度条（矢量 Bar，Conky 语义：高度[,宽度]）
+        Register("cpubar", (args, s) => new BarNode(d => d.CpuPercent, args, s));
+        Register("membar", (args, s) => new BarNode(d => d.MemPercent, args, s));
+        Register("swapbar", (args, s) => new BarNode(d => d.SwapPercent, args, s));
+        Register("fs_bar", (args, s) =>
         {
             // Conky 语法：\${fs_bar [高度[,宽]] 路径}——路径是最后一个参数
             var path = args.Length > 0 && LooksLikePath(args[^1]) ? args[^1] : "/";
             var sizeArgs = args.Length > 0 && LooksLikePath(args[^1]) ? args[..^1] : args;
-            return new BarNode(d => 100 - d.GetDisk(path).FreePercent, sizeArgs);
+            return new BarNode(d => 100 - d.GetDisk(path).FreePercent, sizeArgs, s);
         });
 
         // 一般变量（可变参数）

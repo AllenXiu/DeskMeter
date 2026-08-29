@@ -22,30 +22,62 @@ public readonly record struct WidgetBrush(byte R, byte G, byte B)
     }
 }
 
-/// <summary>一行中的一段文本及其颜色。</summary>
-public sealed class WidgetSpan
+/// <summary>一行中的元素基类（文本或矢量 Bar）。</summary>
+public abstract class WidgetElement
 {
-    public WidgetSpan(string text, WidgetBrush brush)
+}
+
+/// <summary>文本元素。</summary>
+public sealed class WidgetText : WidgetElement
+{
+    public WidgetText(string text, WidgetBrush brush)
     {
         Text = text;
         Brush = brush;
     }
 
-    public string Text { get; set; }
-    public WidgetBrush Brush { get; set; }
+    public string Text { get; }
+    public WidgetBrush Brush { get; }
+}
+
+/// <summary>
+/// 矢量进度条元素（Conky bar 语义）：
+/// 高度/宽度为像素；Width=0 表示填满本行剩余宽度（Conky GUI 行为）。
+/// </summary>
+public sealed class WidgetBar : WidgetElement
+{
+    public WidgetBar(double percent, WidgetBrush brush, double height, double width)
+    {
+        Percent = percent;
+        Brush = brush;
+        Height = height;
+        Width = width;
+    }
+
+    /// <summary>0-100。</summary>
+    public double Percent { get; }
+
+    public WidgetBrush Brush { get; }
+
+    /// <summary>像素高度。</summary>
+    public double Height { get; }
+
+    /// <summary>像素宽度；0 = 填满本行剩余宽度。</summary>
+    public double Width { get; }
 }
 
 /// <summary>小部件的一行：普通文本行或水平分隔线。</summary>
 public sealed class WidgetLine
 {
-    public List<WidgetSpan> Spans { get; } = new();
+    public List<WidgetElement> Elements { get; } = new();
 
-    /// <summary>true 表示这是 $hr 分隔线（Spans 为空）。</summary>
+    /// <summary>true 表示这是 $hr 分隔线（Elements 为空）。</summary>
     public bool IsRule { get; set; }
 
     public WidgetBrush? RuleBrush { get; set; }
 
-    public string PlainText => string.Concat(Spans.Select(s => s.Text));
+    /// <summary>纯文本拼接（不含 bar），供制表对齐与文本断言使用。</summary>
+    public string PlainText => string.Concat(Elements.OfType<WidgetText>().Select(e => e.Text));
 }
 
 /// <summary>Object Tree 的输出模型：有序行集合，供渲染后端消费（WPF / Console / File / HTTP）。</summary>
@@ -67,7 +99,14 @@ public sealed class WidgetLayout
         if (string.IsNullOrEmpty(text)) return;
         var line = CurrentLine;
         if (line.IsRule) line = NewLine();
-        line.Spans.Add(new WidgetSpan(text, brush));
+        line.Elements.Add(new WidgetText(text, brush));
+    }
+
+    public void AppendBar(double percent, WidgetBrush brush, double height, double width)
+    {
+        var line = CurrentLine;
+        if (line.IsRule) line = NewLine();
+        line.Elements.Add(new WidgetBar(percent, brush, height, width));
     }
 
     public void AppendRule(WidgetBrush brush)
@@ -77,14 +116,38 @@ public sealed class WidgetLayout
         line.RuleBrush = brush;
     }
 
-    /// <summary>纯文本表示（Console / File 后端用；规则行画 8 个连字符）。</summary>
+    /// <summary>
+    /// 纯文本表示（Console / File 后端用）。
+    /// 规则行画 8 个连字符；bar 按 Conky console 风格输出（console_bar_fill="#" console_bar_unfill="."，
+    /// 宽度=像素宽，0 时用 DEFAULT_BAR_WIDTH_NO_X=10）。
+    /// </summary>
     public string ToConsoleText()
     {
         var sb = new System.Text.StringBuilder();
         foreach (var line in Lines)
         {
-            if (line.IsRule) sb.Append("--------");
-            else sb.Append(line.PlainText);
+            if (line.IsRule)
+            {
+                sb.Append("--------");
+            }
+            else
+            {
+                foreach (var element in line.Elements)
+                {
+                    switch (element)
+                    {
+                        case WidgetText text:
+                            sb.Append(text.Text);
+                            break;
+                        case WidgetBar bar:
+                            var chars = bar.Width > 0 ? (int)Math.Round(bar.Width) : 10;
+                            var fill = (int)Math.Round(Math.Clamp(bar.Percent, 0, 100) / 100.0 * chars);
+                            sb.Append(new string('#', fill));
+                            sb.Append(new string('.', chars - fill));
+                            break;
+                    }
+                }
+            }
             sb.AppendLine();
         }
         return sb.ToString();

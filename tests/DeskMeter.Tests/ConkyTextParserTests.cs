@@ -88,13 +88,37 @@ public class ConkyTextParserTests
     }
 
     [Fact]
-    public void Render_BarNode_FillsByPercent()
+    public void Render_BarNode_EmitsVectorBarElement()
     {
-        var nodes = ConkyTextParser.Parse("${membar 4}", _registry, _settings);
+        var nodes = ConkyTextParser.Parse("${membar 4,120}", _registry, _settings);
         var layout = Render(nodes);
-        // 26% of 10 chars ≈ 3
-        Assert.Contains("[", layout.Lines[0].PlainText);
-        Assert.EndsWith("]", layout.Lines[0].PlainText);
+        var bar = Assert.IsType<WidgetBar>(Assert.Single(layout.Lines[0].Elements));
+        Assert.Equal(4, bar.Height);      // Conky：高度[,宽度]
+        Assert.Equal(120, bar.Width);
+        Assert.InRange(bar.Percent, 26, 27); // 4.2/16 GiB = 26.25%
+    }
+
+    [Fact]
+    public void Render_BarNode_NoWidth_FillsRemainingLine()
+    {
+        // Conky 语义：省略宽度 = 0 = 填满本行剩余宽度
+        var nodes = ConkyTextParser.Parse("${cpubar 6}", _registry, _settings);
+        var layout = Render(nodes);
+        var bar = Assert.IsType<WidgetBar>(Assert.Single(layout.Lines[0].Elements));
+        Assert.Equal(6, bar.Height);
+        Assert.Equal(0, bar.Width);
+    }
+
+    [Fact]
+    public void Render_BarNode_ConsoleFallback_UsesHashAndDot()
+    {
+        // Console 后端回退：Conky console 风格（# 填充 / . 未填充，宽度=像素宽）
+        var nodes = ConkyTextParser.Parse("${membar 4,120}", _registry, _settings);
+        var layout = Render(nodes);
+        var text = layout.Lines[0].PlainText.Length == 0 ? layout.ToConsoleText().TrimEnd() : "";
+        Assert.Equal(120, text.Length);
+        Assert.Contains("#", text);
+        Assert.Contains(".", text);
     }
 
     private static WidgetLayout Render(System.Collections.Generic.List<ObjectNode> nodes)

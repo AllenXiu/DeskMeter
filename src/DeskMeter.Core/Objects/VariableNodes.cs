@@ -107,25 +107,50 @@ public sealed class UnknownVariableNode : ObjectNode
     public override void Print(RenderContext ctx) => ctx.Layout.AppendText(Placeholder, ctx.CurrentBrush);
 }
 
-/// <summary>文本进度条（P0 用 ASCII 占位，P1 由 Render 层改为矢量 Bar 控件）。</summary>
+/// <summary>
+/// 矢量进度条节点（Conky bar 语义）：输出 WidgetBar 元素，由 WPF 层矢量绘制；
+/// Console 后端在 ToConsoleText 中按 Conky console 风格回退为 #/. 字符。
+/// </summary>
 public sealed class BarNode : ObjectNode
 {
     private readonly Func<SystemSnapshot, double> _percent;
-    private readonly int _chars;
+    private readonly double _height;
+    private readonly double _width;
 
-    public BarNode(Func<SystemSnapshot, double> percent, string[] args)
+    /// <summary>Conky 默认：default_bar_height=6、default_bar_width=0（0 = 填满本行剩余宽度）。</summary>
+    public BarNode(Func<SystemSnapshot, double> percent, string[] args, ConfigSettings settings)
     {
         _percent = percent;
-        var width = args.Length > 1 && double.TryParse(args[1], out var w) ? (int)Math.Round(w) : 0;
-        _chars = width > 0 ? Math.Clamp((int)Math.Round(width / 12.0), 4, 24) : 10;
+        var defaultHeight = settings.GetNumber("default_bar_height", 6);
+        var defaultWidth = settings.GetNumber("default_bar_width", 0);
+        ParseHeightWidth(args, out var h, out var w);
+        _height = h > 0 ? h : defaultHeight;
+        _width = w > 0 ? w : defaultWidth;
+    }
+
+    /// <summary>解析 Conky 参数：\${bar 高度[,宽度]}（如 "6"、"4,120"）。</summary>
+    private static void ParseHeightWidth(string[] args, out double height, out double width)
+    {
+        height = 0;
+        width = 0;
+        if (args.Length == 0) return;
+
+        var first = args[0].Split(',', StringSplitOptions.RemoveEmptyEntries);
+        if (first.Length >= 1 && double.TryParse(first[0],
+                System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var h))
+            height = h;
+        if (first.Length >= 2 && double.TryParse(first[1],
+                System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var w))
+            width = w;
+        else if (args.Length >= 2 && double.TryParse(args[1],
+                System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var w2))
+            width = w2;
     }
 
     public override void Print(RenderContext ctx)
     {
         var p = Math.Clamp(_percent(ctx.Data), 0, 100);
-        var fill = (int)Math.Round(p / 100.0 * _chars);
-        var bar = "[" + new string('#', fill) + new string('-', _chars - fill) + "]";
-        ctx.Layout.AppendText(bar, ctx.CurrentBrush);
+        ctx.Layout.AppendBar(p, ctx.CurrentBrush, _height, _width);
     }
 }
 
