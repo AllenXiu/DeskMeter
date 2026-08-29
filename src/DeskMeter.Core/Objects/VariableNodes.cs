@@ -14,10 +14,15 @@ public sealed class TextNode : ObjectNode
     public override void Print(RenderContext ctx) => ctx.Layout.AppendText(_text, ctx.CurrentBrush);
 }
 
-/// <summary>换行节点（$newline / 文本中的 \n）。</summary>
+/// <summary>换行节点（$newline / 文本中的 \n）。规则行后紧跟的换行是空操作（Conky：$hr 已占一行）。</summary>
 public sealed class NewlineNode : ObjectNode
 {
-    public override void Print(RenderContext ctx) => ctx.Layout.NewLine();
+    public override void Print(RenderContext ctx)
+    {
+        // $hr\n：规则行自身已占一行，换行不再新建空行（避免空白间隙）
+        if (ctx.Layout.CurrentLine.IsRule) return;
+        ctx.Layout.NewLine();
+    }
 }
 
 /// <summary>水平分隔线（$hr）。</summary>

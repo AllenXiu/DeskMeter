@@ -118,6 +118,17 @@ public class ConkyTextParserTests
     }
 
     [Fact]
+    public void Render_HrFollowedByNewline_NoBlankLine()
+    {
+        // $hr\n：规则行占一行，紧跟的换行不应产生空行（Conky 行为）
+        var nodes = ConkyTextParser.Parse("a$hr\nb", _registry, _settings);
+        var layout = Render(nodes);
+        Assert.Equal(3, layout.Lines.Count);
+        Assert.True(layout.Lines[1].IsRule);
+        Assert.Equal("b", layout.Lines[2].PlainText);
+    }
+
+    [Fact]
     public void Render_UnknownVariable_ShowsPlaceholder()
     {
         var nodes = ConkyTextParser.Parse("$totally_unknown_xyz", _registry, _settings);

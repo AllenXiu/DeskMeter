@@ -15,9 +15,13 @@ public sealed class WidgetVisual : FrameworkElement
     private WidgetLayout? _layout;
     private RenderOptions _options;
     private Size _measured;
+    private double _stableWidth; // 宽度只增不减（防内容变化导致窗口抖动）
 
     /// <summary>最近一次重绘的测量尺寸（窗口自适应用）。</summary>
     public Size MeasuredSize => _measured;
+
+    /// <summary>配置重载时重置稳定宽度基线。</summary>
+    public void ResetStableWidth() => _stableWidth = 0;
 
     public WidgetVisual(RenderOptions options)
     {
@@ -42,7 +46,6 @@ public sealed class WidgetVisual : FrameworkElement
 
     private void Redraw()
     {
-        _measured = new Size(0, 0);
         if (_layout is null) return;
 
         var dpi = VisualTreeHelper.GetDpi(this).PixelsPerDip;
@@ -94,11 +97,15 @@ public sealed class WidgetVisual : FrameworkElement
             + Math.Max(0, _layout.Lines.Count - 1) * _options.LineGap
             + _options.Padding * 2;
 
-        // Conky text_size 语义：宽度 = max(minimum_width, min(内容宽, maximum_width))
-        var widgetWidth = WidgetMetrics.ClampWidth(maxWidth, _options.MinimumWidth, _options.MaximumWidth);
+        // 稳定宽度：只增不减（DeskMeter 增强，防官方配置等无 min/max 时窗口抖动），
+        // 再按 Conky text_size 语义钳制：max(minimum_width, min(稳定宽, maximum_width))
+        if (maxWidth > _stableWidth) _stableWidth = maxWidth;
+        var widgetWidth = WidgetMetrics.ClampWidth(_stableWidth, _options.MinimumWidth, _options.MaximumWidth);
         var widgetHeight = Math.Max(totalHeight, _options.MinimumHeight);
 
-        using (var dc = _visual.RenderOpen())
+        // 异常安全：绘制失败时 Abort 丢弃部分内容，保留上一次完整渲染与尺寸
+        var dc = _visual.RenderOpen();
+        try
         {
             var y = _options.Padding;
             for (var i = 0; i < _layout.Lines.Count; i++)
@@ -129,8 +136,8 @@ public sealed class WidgetVisual : FrameworkElement
                             }
                             case WidgetBar bar:
                             {
-                                // Conky 语义：Width=0 → 填满本行剩余宽度（以 clamped 后的窗口宽度为准）
-                                var w = bar.Width > 0 ? bar.Width : Math.Max(0, widgetWidth - x);
+                                // Conky 语义：Width=0 → 填满本行剩余宽度（取整防亚像素矩形）
+                                var w = bar.Width > 0 ? bar.Width : Math.Round(Math.Max(0, widgetWidth - x));
                                 var h = bar.Height;
                                 DrawBar(dc, x, y + (lineHeight - h) / 2, w, h, bar.Brush, bar.Percent);
                                 x += w;
@@ -169,6 +176,13 @@ public sealed class WidgetVisual : FrameworkElement
                 }
                 y += lineHeight + _options.LineGap;
             }
+            dc.Close();
+        }
+        catch (Exception ex)
+        {
+            // 尺寸守卫已覆盖已知抛点（负尺寸矩形）；此处兜底：不更新 _measured，下次刷新自愈
+            System.Diagnostics.Debug.WriteLine("DeskMeter draw error: " + ex.Message);
+            return;
         }
 
         _measured = new Size(
@@ -182,18 +196,20 @@ public sealed class WidgetVisual : FrameworkElement
     private static void DrawBar(DrawingContext dc, double x, double y, double w, double h,
         WidgetBrush color, double percent)
     {
+        // 尺寸守卫：任何非正尺寸都会让 DrawRoundedRectangle 抛异常（曾导致绘制中断/内容残缺）
         if (w <= 0 || h <= 0) return;
         var fillBrush = ToBrush(color);
         var pen = new Pen(fillBrush, 1);
         var radius = Math.Min(3, h / 2);
 
-        // 填充部分（按百分比）
+        // 填充部分（按百分比；亚像素宽度不画）
         var fillW = w * Math.Clamp(percent, 0, 100) / 100.0;
-        if (fillW > 0)
+        if (fillW >= 1)
             dc.DrawRoundedRectangle(fillBrush, null, new Rect(x, y, fillW, h), radius, radius);
 
-        // 描边（轨道：透明背景 + 当前色轮廓，与 Conky 一致）
-        dc.DrawRoundedRectangle(null, pen, new Rect(x + 0.5, y + 0.5, w - 1, h - 1), radius, radius);
+        // 描边（轨道：透明背景 + 当前色轮廓；w/h 不足 2px 时跳过，避免负尺寸矩形）
+        if (w >= 2 && h >= 2)
+            dc.DrawRoundedRectangle(null, pen, new Rect(x + 0.5, y + 0.5, w - 1, h - 1), radius, radius);
     }
 
     /// <summary>

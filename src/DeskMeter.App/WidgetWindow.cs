@@ -127,6 +127,8 @@ public sealed class WidgetWindow : Window
         var config = _engine.LoadFile(_configPath);
         _settings = config.Settings;
         _nodes = ConkyTextParser.Parse(config.Text, _registry, config.Settings);
+        // 新配置：重置稳定宽度基线（防旧的宽内容残留）
+        _visual?.ResetStableWidth();
     }
 
     /// <summary>托盘/外部触发手动刷新。</summary>
