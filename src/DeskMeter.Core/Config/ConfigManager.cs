@@ -79,7 +79,7 @@ public sealed class ConfigManager
         }
     }
 
-    /// <summary>重命名配置（改文件名；不修改 .current 指向的名称）。</summary>
+    /// <summary>重命名配置（改文件名；若重命名的是当前配置，同步更新 .current 指向）。</summary>
     public bool Rename(ConfigEntry entry, string newName)
     {
         try
@@ -88,7 +88,9 @@ public sealed class ConfigManager
             if (name.Length == 0) return false;
             var target = System.IO.Path.Combine(_configsDir, name + ".conf");
             if (System.IO.File.Exists(target) && !string.Equals(target, entry.Path, StringComparison.OrdinalIgnoreCase)) return false;
+            var wasCurrent = string.Equals(entry.Name, Current()?.Name, StringComparison.OrdinalIgnoreCase);
             System.IO.File.Move(entry.Path, target);
+            if (wasCurrent) System.IO.File.WriteAllText(_currentFile, name);
             return true;
         }
         catch

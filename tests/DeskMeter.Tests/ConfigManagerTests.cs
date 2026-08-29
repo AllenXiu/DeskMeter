@@ -63,6 +63,29 @@ public class ConfigManagerTests : IDisposable
     }
 
     [Fact]
+    public void Rename_CurrentConfig_UpdatesCurrentMarker()
+    {
+        var src = WriteConf("src", "x");
+        var entry = _manager.Import(src, "A");
+        _manager.SetCurrent(entry!);
+        Assert.True(_manager.Rename(entry!, "B"));
+        // 重命名当前配置后，.current 应同步指向新名称（否则下次启动会回到默认配置）
+        Assert.Equal("B", _manager.Current()!.Name);
+        Assert.True(System.IO.File.Exists(System.IO.Path.Combine(_dir, "B.conf")));
+    }
+
+    [Fact]
+    public void Rename_NonCurrent_KeepsCurrentMarker()
+    {
+        var src = WriteConf("src", "x");
+        var a = _manager.Import(src, "A");
+        var b = _manager.Import(src, "B");
+        _manager.SetCurrent(a!);
+        Assert.True(_manager.Rename(b!, "B2"));
+        Assert.Equal("A", _manager.Current()!.Name);
+    }
+
+    [Fact]
     public void Delete_RemovesEntry_AndClearsCurrent()
     {
         var src = WriteConf("src", "x");
