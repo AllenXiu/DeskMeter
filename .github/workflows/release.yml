@@ -1,0 +1,62 @@
+name: Release
+
+# 发布流：推送到 v* 标签（如 v0.1.0）触发；
+# 构建 + 测试 + 发布 win-x64 自包含单文件 → 打包 zip → 创建 GitHub Release。
+# 产物 zip 内含 DeskMeter.exe（含 samples/conky.conf），用户解压即用，无需安装 .NET。
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Resolve version from tag
+        shell: bash
+        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+
+      - name: Restore
+        run: dotnet restore DeskMeter.sln
+
+      - name: Build (Release)
+        run: dotnet build DeskMeter.sln -c Release --no-restore
+
+      - name: Test
+        run: dotnet test tests/DeskMeter.Tests/DeskMeter.Tests.csproj -c Release --no-build
+
+      - name: Publish (win-x64 self-contained single-file)
+        run: >
+          dotnet publish src/DeskMeter.App/DeskMeter.App.csproj
+          -c Release -r win-x64 --self-contained true
+          -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:DebugType=none -p:DebugSymbols=false
+          -p:Version=${{ env.VERSION }}
+          -o publish
+
+      - name: Smoke check (publish 产物存在)
+        shell: pwsh
+        run: |
+          Get-ChildItem publish | Select-Object Name, Length
+          if (-not (Test-Path publish/DeskMeter.exe)) { throw "DeskMeter.exe missing" }
+          if (-not (Test-Path publish/samples/conky.conf)) { throw "samples/conky.conf missing" }
+
+      - name: Package zip
+        shell: pwsh
+        run: Compress-Archive -Path publish/* -DestinationPath DeskMeter-${{ env.VERSION }}-win-x64.zip -Force
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: DeskMeter-${{ env.VERSION }}-win-x64.zip
+          generate_release_notes: true

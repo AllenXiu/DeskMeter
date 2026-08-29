@@ -8,6 +8,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>DeskMeter.App</RootNamespace>
     <AssemblyName>DeskMeter</AssemblyName>
+    <Version>0.1.0</Version>
+    <AssemblyVersion>0.1.0.0</AssemblyVersion>
+    <FileVersion>0.1.0.0</FileVersion>
     <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>
   <!-- NFR-2 内存 <100MB：限制托管堆硬上限（32MB，实际稳态 gcHeap 仅 2-3MB，10 倍余量），

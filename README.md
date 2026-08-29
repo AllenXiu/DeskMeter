@@ -17,11 +17,18 @@ English | [中文](README_zh.md)
 - **Lightweight by design** — single process, ~2s default refresh, negligible footprint
 - **Open source. No ads. No telemetry. No installer junk.**
 
+## Install / Releases
+
+- Download `DeskMeter-<version>-win-x64.zip` from [GitHub Releases](https://github.com/AllenXiu/DeskMeter/releases) and unzip — self-contained single-file, no .NET runtime required.
+- On first run the app imports `samples/conky.conf` as the default config (config library lives at `%APPDATA%\DeskMeter\configs`).
+- Release flow: push a `v*` tag (e.g. `v0.1.0`) → GitHub Actions builds, tests, packages and creates the Release.
+
 ## Roadmap
 
 - [x] P0: text variables, transparent desktop window, conky.conf parsing, timed refresh
-- [ ] P1: bars & graphs, colors, `${exec}` / `${execpi}`, hot reload, layout objects
-- [ ] P2: temperature (LibreHardwareMonitor), top processes, mouse events, tray icon, autostart, multi-monitor, themes, settings UI
+- [x] P1: vector bars & graphs, colors, `${exec}` / `${execpi}`, hot reload, layout objects
+- [x] P2: temperature (LibreHardwareMonitor), top processes, tray icon, autostart, multi-monitor, multi-config management (replaces the cancelled "themes"), settings UI
+- [ ] Edge cases: inline `${font}`, scroll right/wait, graph flags, offset/voffset/tab pixel semantics
 - [ ] Future: cross-platform (renderer is abstracted; Avalonia migration if ever needed)
 
 > Non-goals: no Lua drawing scripts, no interactive skins, no skin marketplace. Full Lua config execution (MoonSharp) is supported — DeskMeter stays simple on purpose.

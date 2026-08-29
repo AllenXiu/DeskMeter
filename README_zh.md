@@ -17,14 +17,21 @@
 - **轻量设计** — 单进程，默认约 2 秒刷新，占用极小
 - **开源。无广告。无遥测。无安装包捆绑。**
 
+## 安装 / 发布
+
+- 从 [GitHub Releases](https://github.com/AllenXiu/DeskMeter/releases) 下载 `DeskMeter-<版本>-win-x64.zip`，解压即用（自包含单文件，无需安装 .NET）。
+- 首次启动自动把 `samples/conky.conf` 导入为默认配置（配置库位于 `%APPDATA%\DeskMeter\configs`）。
+- 发布流程：推送到 `v*` 标签（如 `v0.1.0`）→ GitHub Actions 自动 构建 + 测试 + 打包 → 生成 Release。
+
 ## 路线图
 
 - [x] P0：文本变量、透明桌面窗口、conky.conf 解析、定时刷新
-- [ ] P1：进度条与曲线图、颜色、`${exec}`、热重载
-- [ ] P2：温度（LibreHardwareMonitor）、进程 Top 榜、托盘图标、开机自启、多显示器、主题
+- [x] P1：矢量进度条与曲线图、颜色、`${exec}`、热重载、布局对象
+- [x] P2：温度（LibreHardwareMonitor）、进程 Top 榜、托盘、开机自启、多显示器、多配置管理（替代已取消的"主题"）、设置界面
+- [ ] 边界项：行内 `${font}`、scroll right/wait、graph 旗标、offset/voffset/tab 像素语义
 - [ ] 未来：Linux 支持（同一配置格式，/proc + lm-sensors 数据源）
 
-> 非目标：不支持 Lua、不支持鼠标交互皮肤、不做皮肤市场。DeskMeter 有意保持简洁。
+> 非目标：不支持 Lua 绘图脚本、不支持鼠标交互皮肤、不做皮肤市场。DeskMeter 有意保持简洁。
 
 ## 开源许可
 
