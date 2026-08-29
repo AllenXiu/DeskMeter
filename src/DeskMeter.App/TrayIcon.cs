@@ -7,8 +7,8 @@ using DeskMeter.Core.Config;
 namespace DeskMeter.App;
 
 /// <summary>
-/// 系统托盘图标（P2）：菜单 = 编辑配置… / 刷新 / 开机自启（勾选） / 退出。
-/// 设置窗口后续接入（设计稿 Settings 三页）。
+/// 系统托盘图标（P2）：菜单 = 配置▶ / 设置… / 退出
+/// （用户决策：编辑配置… / 刷新 / 开机自启 从托盘移除；开机自启仍在设置窗口常规页，编辑配置在设置窗口配置页）。
 /// </summary>
 public sealed class TrayIcon : IDisposable
 {
@@ -16,7 +16,6 @@ public sealed class TrayIcon : IDisposable
     private readonly WidgetWindow _window;
     private readonly string _configPath;
     private readonly ConfigManager _configs;
-    private readonly ToolStripMenuItem _autostartItem;
     private readonly ToolStripMenuItem _configMenu;
 
     public TrayIcon(WidgetWindow window, string configPath, ConfigManager configs)
@@ -37,34 +36,18 @@ public sealed class TrayIcon : IDisposable
 
         _configMenu = new ToolStripMenuItem("配置▶");
 
-        var edit = new ToolStripMenuItem("编辑配置…");
-        edit.Click += (_, _) => OpenConfigEditor();
-
-        var refresh = new ToolStripMenuItem("刷新");
-        refresh.Click += (_, _) => _window.RequestRefresh();
-
-        _autostartItem = new ToolStripMenuItem("开机自启")
-        {
-            Checked = Autostart.IsEnabled(),
-        };
-        _autostartItem.Click += (_, _) => ToggleAutostart();
-
         var exit = new ToolStripMenuItem("退出");
         exit.Click += (_, _) => _window.Close();
 
         var menu = new ContextMenuStrip();
         menu.Items.AddRange(new ToolStripItem[]
         {
-            _configMenu, settings, edit, refresh, _autostartItem,
+            _configMenu, settings,
             new ToolStripSeparator(),
             exit,
         });
-        // 每次弹出菜单：刷新开机自启勾选 + 重建配置子菜单
-        menu.Opening += (_, _) =>
-        {
-            _autostartItem.Checked = Autostart.IsEnabled();
-            RebuildConfigMenu();
-        };
+        // 每次弹出菜单：重建配置子菜单（勾选当前配置）
+        menu.Opening += (_, _) => RebuildConfigMenu();
         _icon.ContextMenuStrip = menu;
         _icon.DoubleClick += (_, _) => OpenConfigEditor();
     }
@@ -138,12 +121,6 @@ public sealed class TrayIcon : IDisposable
         {
             // 无法打开编辑器时忽略
         }
-    }
-
-    private void ToggleAutostart()
-    {
-        var ok = Autostart.SetEnabled(!_autostartItem.Checked);
-        if (ok) _autostartItem.Checked = !_autostartItem.Checked;
     }
 
     private static System.Drawing.Icon CreateIcon()

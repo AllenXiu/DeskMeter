@@ -150,12 +150,6 @@ public sealed class WidgetWindow : Window
         _visual?.ResetStableWidth();
     }
 
-    /// <summary>托盘/外部触发手动刷新。</summary>
-    public void RequestRefresh()
-    {
-        Dispatcher.BeginInvoke(Refresh);
-    }
-
     private void Refresh()
     {
         try

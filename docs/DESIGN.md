@@ -210,7 +210,7 @@ Linux 专属对象（`acpi*`、`apm*`、`apcupsd*`、`battery`、`hddtemp`、`pl
 | 需求 | 说明 | 优先级 |
 |---|---|---|
 | 设置窗口 | 独立常规窗口（非透明），720×520 左右，可缩放 | P1 |
-| 打开方式 | 托盘右键 →「设置」；另有「编辑配置」直接打开 conky.conf | P2 |
+| 打开方式 | 托盘右键 →「设置」；配置编辑走设置窗口配置页（用记事本编辑） | P2 |
 
 **分区与设置项**：
 
@@ -244,7 +244,7 @@ Linux 专属对象（`acpi*`、`apm*`、`apcupsd*`、`battery`、`hddtemp`、`pl
 | 温度监控 | LibreHardwareMonitor 集成，兼容 `${platform coretemp.0 temp 1}` / `${hddtemp /dev/sda}` 语法（映射到 Windows 传感器） | P2 |
 | Top 进程 | `${top name 1}` `${top cpu 1}` `${top_mem name 1}` `${top_mem mem 1}`（Conky 标准语法） | P2 |
 | 音乐控制 | `${mpc title}` / `${mpc artist}`（MPD）；Spotify 等可用 `${exec playerctl ...}` | P2 |
-| 托盘图标 | 常驻托盘，右键菜单（刷新、设置、编辑配置、退出） | P2 |
+| 托盘图标 | 常驻托盘，右键菜单（配置▶ 多配置切换/导入、设置…、退出） | P2 |
 | 开机自启 | 注册启动项 | P2 |
 | 多配置管理 | 导入多个 conky.conf、命名、切换当前配置（替代原"主题"方案，用户决策取消主题） | P2 |
 | Linux | 同配置格式，/proc + lm-sensors 数据源 | Future |
