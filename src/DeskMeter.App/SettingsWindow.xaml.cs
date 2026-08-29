@@ -65,6 +65,13 @@ public partial class SettingsWindow : Window
         }
     }
 
+    /// <summary>与托盘联动：每次激活窗口时以注册表为准刷新开机自启状态。</summary>
+    protected override void OnActivated(EventArgs e)
+    {
+        base.OnActivated(e);
+        AutostartBox.IsChecked = Autostart.IsEnabled();
+    }
+
     private void OnSave(object sender, RoutedEventArgs e)
     {
         if (!double.TryParse(IntervalBox.Text, NumberStyles.Any, CultureInfo.InvariantCulture, out var interval) ||

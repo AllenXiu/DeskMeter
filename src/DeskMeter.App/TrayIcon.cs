@@ -53,6 +53,8 @@ public sealed class TrayIcon : IDisposable
             new ToolStripSeparator(),
             exit,
         });
+        // 与设置窗口联动：每次弹出菜单时以注册表为准刷新勾选状态
+        menu.Opening += (_, _) => _autostartItem.Checked = Autostart.IsEnabled();
         _icon.ContextMenuStrip = menu;
         _icon.DoubleClick += (_, _) => OpenConfigEditor();
     }
