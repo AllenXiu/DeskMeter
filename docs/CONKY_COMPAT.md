@@ -40,6 +40,36 @@
 | 其他 | 7 | `ical` `journal` `mysql` `password` `shmem` `sysctlbyname` … |
 | 未归组 | 12 | `apm_battery_life` `apm_battery_time` `colorN` `fontN` `forwarded_mails` `gid_name` … |
 
+## Windows 可替代性评估（未覆盖的 352 个）
+
+结论先行：**大部分可替代**（纯文本处理/网络/进程类完全可行；播放器与 Linux 内核类基本不可替代）。
+可行性图例：✅ 可直接实现 ｜ 🟡 部分可行/需第三方库 ｜ ❌ 不可替代（无 Windows 对应概念）。
+
+| 类别 | 数量 | 可行性 | Windows 实现途径 |
+|---|---|---|---|
+| 文本 / 命令（execbar、eval、lines/head/tail、大小写、to_bytes、templateN、cat） | 27 | ✅ | 纯字符串处理，与平台无关；execbar/execgraph 复用现有 exec+bar/graph 引擎；cat=File.ReadAllText |
+| 网络（addr、gw_*、iface、nameserver、tcp_ping、read_tcp/udp、wireless_*） | 22 | ✅ | NetworkInterface.GetIPProperties()（IP/网关/DNS）、Ping、Socket；无线用 Native Wifi（WlanGetNetworkBssList 信号/信道/ESSID） |
+| 进程 / 用户（pid_cmdline/exe/threads/time/mem 等） | 52 | ✅(约 60%) 🟡(其余) | Process 类（线程/时间/内存/优先级）；WMI Win32_Process（命令行/可执行路径）；NtQueryInformationProcess（environ/cwd，未文档化）；pid_openfiles 需 NtQuerySystemInformation，成本高 |
+| 系统信息（keyboard_layout、key_*_lock、mouse_speed、uptime_short、distribution、monitor*） | 25 | ✅ 大部分 ❌ 少数 | GetKeyboardLayout、GetKeyState、SystemParametersInfo(SPI_GETMOUSESPEED)、Screen.AllScreens；entropy/laptop_mode/cpugovernor 无对应（❌） |
+| 条件 / 控制（if_existing/if_mounted/if_match/if_running/if_up/else/endif） | 19 | ✅ 大部分 | File.Exists、DriveInfo、字符串匹配、Process.GetProcessesByName、NetworkInterface 状态；if_mpd/if_pa 为 Linux 专属（❌） |
+| 内存细分（memfree/memavail/memwithbuffers* 等） | 19 | 🟡 | GlobalMemoryStatusEx 已覆盖 used/avail；Cache/Commit 用 PerformanceCounter "Memory" 类别近似；"buffers/cached" 无精确对应 |
+| 磁盘 / IO（diskio_read/write、diskiograph、fs_bar_free） | 9 | ✅ 5 个 ❌ 2 个 | PerformanceCounter "PhysicalDisk"（读/写字节每秒）→ 可接现有 graph 引擎；fs_bar_free=已有 fs_free_perc 的 bar；ioscheduler/disk_protect 为 Linux 概念（❌） |
+| Lua（lua、lua_bar/gauge/graph/parse） | 5 | ✅ | 已有 MoonSharp（配置即完整 Lua）——lua 变量=调用配置里注册的函数，直接可做 |
+| 硬件 / 温度 / 电池（battery_*、nvidia*、platformbar、voltage_*） | 37 | 🟡 | 电池：Win32_Battery WMI；GPU：LibreHardwareMonitor（已在用）提供负载/温度；电压：LHM 传感器；i8k/ibm/acpi/smapi 为厂商 ACPI 接口（❌，无通用替代） |
+| 音频 / 播放器（audacious/mpd/cmus/moc/xmms2/mixer/pa/irc） | 92 | 🟡 少数 ❌ 多数 | 音量/静音：Windows CoreAudio（NAudio 或 winmm）；当前播放曲目：Win11 SMTC（Windows.Media.Control，可拿 artist/title/status）；Linux 播放器守护进程本身（❌） |
+| 邮件（mails 系列、mboxscan） | 12 | 🟡 | 需对接邮件客户端（Outlook COM/MAPI）或 IMAP 协议；无通用本地方案 |
+| 其他（tztime、ical、journal、mysql、shmem、sysctlbyname） | 7 | 🟡 2 个 ❌ 5 个 | tztime=TimeZoneInfo 直接可做；ical=读 .ics 文件；journal→Windows 事件日志（EventLog，语义不同）；mysql/shmem/sysctl 无对应 |
+
+### 建议优先级（Windows 上性价比最高）
+
+1. **if_* 条件系列**（if_existing/if_mounted/if_match/if_running/if_up + else/endif）——对兼容真实 Conky 配置帮助最大，纯 .NET API 可做
+2. **网络信息**（addr/gw_ip/gw_iface/nameserver + loadavg 用 CPU 历史平均）——常用且简单
+3. **文本处理**（lines/head/tail/words/uppercase/lowercase/startcase/eval/to_bytes/templateN）——纯字符串，实现快
+4. **execbar/execgraph**（复用现有引擎）与 **lua** 变量（MoonSharp 现成）
+5. **磁盘 IO 速率**（diskio_read/write + diskiograph，PerformanceCounter 已有基础设施）
+6. **电池**（Win32_Battery：battery_percent/battery_time/battery_status/battery_bar）
+7. 🟡 大工程：SMTC 当前播放（替代 mpd_artist/title）、Native Wifi 无线信息
+
 ## 结论
 
 - **核心监控数据全部覆盖**：CPU/内存/交换/磁盘/网络/进程/温度/时间/主机信息 与 Conky 同名语法一致。
