@@ -61,6 +61,9 @@ public sealed class WidgetWindow : Window
             StartConfigWatcher();
 
         SourceInitialized += (_, _) => ApplyDesktopWindowStyles();
+
+        // 鼠标事件（FR-LATER）：deskmeter.click_through = false 时小部件可点击，单击打开设置
+        MouseLeftButtonUp += (_, _) => SettingsLauncher.Open(_configPath);
         Refresh();
     }
 
@@ -112,6 +115,7 @@ public sealed class WidgetWindow : Window
         {
             LoadConfig();
             _timer.Interval = TimeSpan.FromSeconds(_settings.GetUpdateInterval(2.0));
+            ApplyDesktopWindowStyles(); // click_through 可能变化，重新应用窗口样式
             Refresh();
             System.Diagnostics.Debug.WriteLine("DeskMeter config reloaded");
         }
@@ -217,7 +221,9 @@ public sealed class WidgetWindow : Window
         if (hwnd == IntPtr.Zero) return;
 
         var ex = GetWindowLong(hwnd, GWL_EXSTYLE);
-        ex |= WS_EX_TRANSPARENT | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW;
+        ex |= WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW;
+        // 点击穿透与鼠标事件互斥：deskmeter.click_through = false 时可点击（单击打开设置）
+        if (_settings.GetBool("click_through", true)) ex |= WS_EX_TRANSPARENT;
         SetWindowLong(hwnd, GWL_EXSTYLE, ex);
 
         SetWindowPos(hwnd, HWND_BOTTOM, 0, 0, 0, 0,

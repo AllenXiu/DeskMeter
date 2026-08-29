@@ -13,6 +13,9 @@ public sealed class CliOptions
     /// <summary>wpf 模式下创建窗口并自动关闭（CI/冒烟验证）。</summary>
     public bool SmokeTest { get; private set; }
 
+    /// <summary>启动时同时打开设置窗口（调试/CI 用）。</summary>
+    public bool OpenSettings { get; private set; }
+
     public static CliOptions Parse(string[] args)
     {
         var o = new CliOptions();
@@ -28,6 +31,9 @@ public sealed class CliOptions
                     break;
                 case "--smoke-test":
                     o.SmokeTest = true;
+                    break;
+                case "--settings":
+                    o.OpenSettings = true;
                     break;
                 case "--help":
                 case "-h":

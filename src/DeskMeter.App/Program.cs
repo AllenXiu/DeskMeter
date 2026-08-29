@@ -39,6 +39,8 @@ internal static class Program
         // 系统托盘（P2）：编辑配置… / 刷新 / 开机自启 / 退出
         using var tray = new TrayIcon(window, options.ConfigPath);
 
+        if (options.OpenSettings) SettingsLauncher.Open(options.ConfigPath);
+
         app.Run(window);
         return 0;
     }

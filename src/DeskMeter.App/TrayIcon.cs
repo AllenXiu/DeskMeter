@@ -28,6 +28,9 @@ public sealed class TrayIcon : IDisposable
             Visible = true,
         };
 
+        var settings = new ToolStripMenuItem("设置…");
+        settings.Click += (_, _) => SettingsLauncher.Open(_configPath);
+
         var edit = new ToolStripMenuItem("编辑配置…");
         edit.Click += (_, _) => OpenConfigEditor();
 
@@ -46,7 +49,7 @@ public sealed class TrayIcon : IDisposable
         var menu = new ContextMenuStrip();
         menu.Items.AddRange(new ToolStripItem[]
         {
-            edit, refresh, _autostartItem,
+            settings, edit, refresh, _autostartItem,
             new ToolStripSeparator(),
             exit,
         });

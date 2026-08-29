@@ -1,0 +1,136 @@
+using System.Globalization;
+using System.IO;
+using System.Windows;
+using System.Windows.Navigation;
+using DeskMeter.Core.Config;
+using DeskMeter.Core.Objects;
+
+namespace DeskMeter.App;
+
+/// <summary>
+/// 设置窗口（FR-SET）：三页 = 常规（刷新间隔/点击穿透/开机自启/显示器）+
+/// 配置（conky.conf 编辑器，保存写回 + 热重载）+ 关于。
+/// </summary>
+public partial class SettingsWindow : Window
+{
+    private readonly string _configPath;
+    private readonly ConfigSettings _settings;
+
+    public SettingsWindow(string configPath)
+    {
+        InitializeComponent();
+        _configPath = configPath;
+
+        ConfigSettings? settings = null;
+        string? content = null;
+        try
+        {
+            var cfg = new LuaConfigEngine().LoadFile(configPath);
+            settings = cfg.Settings;
+            content = cfg.LuaSource;
+        }
+        catch
+        {
+            try { content = File.ReadAllText(configPath); }
+            catch { content = DefaultConfig; }
+        }
+        _settings = settings ?? new ConfigSettings(configPath, new Dictionary<string, object?>());
+        Editor.Text = content ?? DefaultConfig;
+
+        IntervalBox.Text = _settings.GetUpdateInterval(2.0).ToString("0.##", CultureInfo.InvariantCulture);
+        ClickThroughBox.IsChecked = _settings.GetBool("click_through", true);
+        AutostartBox.IsChecked = Autostart.IsEnabled();
+
+        var screens = System.Windows.Forms.Screen.AllScreens;
+        MonitorBox.ItemsSource = screens.Select((s, i) => $"{i}: {s.DeviceName.TrimEnd('\\')}").ToList();
+        var monitor = (int)_settings.GetNumber("monitor", 0);
+        MonitorBox.SelectedIndex = screens.Length == 0 ? -1 : Math.Clamp(monitor, 0, screens.Length - 1);
+
+        var full = Path.GetFullPath(configPath);
+        ConfigPathText.Text = full;
+        AboutConfigPath.Text = full;
+        AboutVersionText.Text = "版本 " + VariableEvaluator.Version.Replace("DeskMeter ", "v");
+    }
+
+    private void OnSave(object sender, RoutedEventArgs e)
+    {
+        if (!double.TryParse(IntervalBox.Text, NumberStyles.Any, CultureInfo.InvariantCulture, out var interval) ||
+            interval <= 0)
+        {
+            MessageBox.Show(this, "刷新间隔必须是大于 0 的数字", "输入无效",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        var monitor = MonitorBox.SelectedIndex >= 0 ? MonitorBox.SelectedIndex : 0;
+        var clickThrough = ClickThroughBox.IsChecked == true;
+        var content = ConfigWriteBack.Update(Editor.Text, interval, clickThrough, monitor);
+
+        try
+        {
+            File.WriteAllText(_configPath, content);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, "保存失败：" + ex.Message, "错误",
+                MessageBoxButton.OK, MessageBoxImage.Error);
+            return;
+        }
+
+        Autostart.SetEnabled(AutostartBox.IsChecked == true);
+        Close(); // 热重载由 FileSystemWatcher 在 1s 内自动完成（FR-SET-1）
+    }
+
+    private void OnCancel(object sender, RoutedEventArgs e) => Close();
+
+    private void OnRestoreDefault(object sender, RoutedEventArgs e)
+    {
+        var path = Path.Combine(AppContext.BaseDirectory, "samples", "conky.conf");
+        try
+        {
+            Editor.Text = File.Exists(path) ? File.ReadAllText(path) : DefaultConfig;
+        }
+        catch
+        {
+            Editor.Text = DefaultConfig;
+        }
+    }
+
+    private void OnNavigate(object sender, RequestNavigateEventArgs e)
+    {
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = e.Uri.ToString(),
+                UseShellExecute = true,
+            });
+        }
+        catch { }
+        e.Handled = true;
+    }
+
+    private const string DefaultConfig = """
+        -- DeskMeter 默认配置
+        conky.config = {
+            update_interval = 2,
+            alignment = 'top_right',
+            gap_x = 16,
+            gap_y = 16,
+            font = 'Consolas:size=12',
+            default_color = 'FFFFFF',
+            color0 = '88CCFF',
+            minimum_width = 200,
+            maximum_width = 200,
+        };
+        conky.text = [[
+        $color0$hostname$color  ${time %H:%M}
+        $hr
+        CPU  $cpu%  ${cpubar 6}
+        内存  $memperc%  ${membar 6}
+        磁盘  ${fs_free_perc /}%  ${fs_bar 6 /}
+        网络  ↓ $downspeed  ↑ $upspeed
+        运行时间  $uptime
+        ]];
+        """;
+}
