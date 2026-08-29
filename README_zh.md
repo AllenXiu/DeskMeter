@@ -17,6 +17,11 @@
 - **轻量设计** — 单进程，默认约 2 秒刷新，占用极小
 - **开源。无广告。无遥测。无安装包捆绑。**
 
+## 文档
+
+- [变量/系统数据接口参考](docs/VARIABLES.md)（96 个变量，含 Conky 兼容说明）
+- [设计文档](docs/DESIGN.md) 与 [会话交接总结](docs/SESSION_SUMMARY.md)
+
 ## 安装 / 发布
 
 - 从 [GitHub Releases](https://github.com/AllenXiu/DeskMeter/releases) 下载 `DeskMeter-<版本>-win-x64.zip`，解压即用（自包含单文件，无需安装 .NET）。

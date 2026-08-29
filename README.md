@@ -17,6 +17,11 @@ English | [中文](README_zh.md)
 - **Lightweight by design** — single process, ~2s default refresh, negligible footprint
 - **Open source. No ads. No telemetry. No installer junk.**
 
+## Docs
+
+- [Variable reference (96 variables, Conky compatibility)](docs/VARIABLES.md)
+- [Design doc](docs/DESIGN.md)
+
 ## Install / Releases
 
 - Download `DeskMeter-<version>-win-x64.zip` from [GitHub Releases](https://github.com/AllenXiu/DeskMeter/releases) and unzip — self-contained single-file, no .NET runtime required.
