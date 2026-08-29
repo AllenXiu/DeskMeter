@@ -74,6 +74,10 @@ public sealed class WidgetVisual : FrameworkElement
                             if (bar.Width > 0) w += bar.Width;
                             if (bar.Height > h) h = bar.Height;
                             break;
+                        case WidgetGoto g:
+                            // Conky：goto 位置计入行宽
+                            if (g.X > w) w = g.X;
+                            break;
                     }
                 }
             }
@@ -126,6 +130,12 @@ public sealed class WidgetVisual : FrameworkElement
                                 var h = bar.Height;
                                 DrawBar(dc, x, y + (lineHeight - h) / 2, w, h, bar.Brush, bar.Percent);
                                 x += w;
+                                break;
+                            }
+                            case WidgetGoto g:
+                            {
+                                // Conky：cur_x = arg（相对文本区起点，绝对定位）
+                                x = _options.Padding + g.X;
                                 break;
                             }
                         }

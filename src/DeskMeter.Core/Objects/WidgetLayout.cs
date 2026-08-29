@@ -66,6 +66,18 @@ public sealed class WidgetBar : WidgetElement
     public double Width { get; }
 }
 
+/// <summary>${goto N}：把当前绘制位置跳到本行第 N 像素列（相对文本区起点，Conky GOTO 语义）。</summary>
+public sealed class WidgetGoto : WidgetElement
+{
+    public WidgetGoto(double x)
+    {
+        X = x;
+    }
+
+    /// <summary>像素列（相对文本区左缘）。</summary>
+    public double X { get; }
+}
+
 /// <summary>小部件的一行：普通文本行或水平分隔线。</summary>
 public sealed class WidgetLine
 {
@@ -109,6 +121,13 @@ public sealed class WidgetLayout
         line.Elements.Add(new WidgetBar(percent, brush, height, width));
     }
 
+    public void AppendGoto(double x)
+    {
+        var line = CurrentLine;
+        if (line.IsRule) line = NewLine();
+        line.Elements.Add(new WidgetGoto(x));
+    }
+
     public void AppendRule(WidgetBrush brush)
     {
         var line = NewLine();
@@ -144,6 +163,9 @@ public sealed class WidgetLayout
                             var fill = (int)Math.Round(Math.Clamp(bar.Percent, 0, 100) / 100.0 * chars);
                             sb.Append(new string('#', fill));
                             sb.Append(new string('.', chars - fill));
+                            break;
+                        case WidgetGoto:
+                            // Conky console 后端忽略 goto（仅 GUI 生效）
                             break;
                     }
                 }

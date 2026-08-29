@@ -93,7 +93,7 @@
    - `dotnet run --project src/DeskMeter.App -- --config <path>`（WPF 透明小部件）
    - 追加 `--backend console` 无头渲染到 stdout；追加 `--smoke-test` 创建窗口 2.5s 自动关闭
    - 单测：`dotnet test tests/DeskMeter.Tests`
-   - **已完成的 P1 子项**：矢量 Bar（Conky 语义：`高度[,宽度]`、默认高 6、宽度省略=填满本行剩余宽度；WPF 圆角矩形描边+填充，console 后端 `#`/`.` 回退）；窗口尺寸按 Conky `text_size` 语义钳制（`minimum_size` / `minimum_width` / `minimum_height` / `maximum_width` 已生效，bar 填满钳制后的宽度），`use_spacer = left|right` 可给动态字段（百分比/字节/速率）补空格防抖动；示例配置用 `minimum_width = maximum_width = 260` 固定宽度，多次刷新窗口尺寸/位置恒定（268×159 截图验证）
+   - **已完成的 P1 子项**：矢量 Bar（Conky 语义：`高度[,宽度]`、默认高 6、宽度省略=填满本行剩余宽度；WPF 圆角矩形描边+填充，console 后端 `#`/`.` 回退）；窗口尺寸按 Conky `text_size` 语义钳制（`minimum_size` / `minimum_width` / `minimum_height` / `maximum_width` 已生效，bar 填满钳制后的宽度），`use_spacer = left|right` 可给动态字段（百分比/字节/速率）补空格防抖动；`${goto N}` 已按 Conky 像素绝对定位实现（计入行宽、console 忽略）；示例配置 `minimum_width = maximum_width = 260` + `${goto 110}` 固定 bar 起点列 → 三条 bar 等长、左右两端对齐、与文字留固定空隙，多次刷新窗口尺寸/位置恒定（268×159 截图验证）
    - **已知 P0 边界（留给 P1/P2）**：Graph 曲线图未实现；`${top}`/`${exec}` 输出 `--`；`$cpu N` 单核暂用总占用；scroll 静态不滚动；网络/CPU 首采样为 0；行内 `${font}` 解析但不生效；命名颜色为 X11 常用子集
 2. **P1 剩余**：Graph 曲线图、颜色（命名颜色全量）、`${exec}`/`${execpi}` 异步、热重载、布局对象（alignc/alignr 行级排版、scroll 滚动）
 3. **P2**：温度（LibreHardwareMonitor）、Top 进程、鼠标事件（点击弹设置）、托盘、自启、多显示器、主题、设置界面

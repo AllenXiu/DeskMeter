@@ -64,6 +64,25 @@ public class ConkyTextParserTests
     }
 
     [Fact]
+    public void Render_Goto_EmitsPixelPositionElement()
+    {
+        var nodes = ConkyTextParser.Parse("${goto 110}x", _registry, _settings);
+        var layout = Render(nodes);
+        var gotoEl = Assert.IsType<WidgetGoto>(layout.Lines[0].Elements[0]);
+        Assert.Equal(110, gotoEl.X);
+        Assert.IsType<WidgetText>(layout.Lines[0].Elements[1]);
+    }
+
+    [Fact]
+    public void Console_IgnoresGoto_LikeConky()
+    {
+        var nodes = ConkyTextParser.Parse("${goto 110}${membar 4}", _registry, _settings);
+        var layout = Render(nodes);
+        var text = layout.ToConsoleText().TrimEnd();
+        Assert.Equal(10, text.Length); // 无空格：Conky console 后端忽略 goto
+    }
+
+    [Fact]
     public void Render_UnknownVariable_ShowsPlaceholder()
     {
         var nodes = ConkyTextParser.Parse("$totally_unknown_xyz", _registry, _settings);

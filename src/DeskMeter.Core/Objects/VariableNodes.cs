@@ -80,7 +80,11 @@ public sealed class LayoutNode : ObjectNode
         switch (_kind)
         {
             case "goto":
+                // Conky GOTO 语义：跳到本行第 N 像素列（相对文本区起点），由渲染层处理
+                ctx.Layout.AppendGoto(_n);
+                break;
             case "offset":
+                // offset 为像素相对偏移；P0 用空格近似，P1 改为像素元素
                 if (_n > 0) ctx.Layout.AppendText(new string(' ', _n), ctx.CurrentBrush);
                 break;
             case "tab":
