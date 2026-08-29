@@ -15,8 +15,10 @@ internal static class TestHelpers
     }
 
     /// <summary>固定数据的快照，供渲染断言使用。</summary>
-    public static SystemSnapshot FakeSnapshot() => new()
+    public static SystemSnapshot FakeSnapshot()
     {
+        var snap = new SystemSnapshot
+        {
         CpuPercent = 12,
         MemUsedBytes = 4.2 * 1024 * 1024 * 1024,
         MemTotalBytes = 16L * 1024L * 1024L * 1024L,
@@ -45,7 +47,11 @@ internal static class TestHelpers
         OsName = "Microsoft Windows 11 Pro",
         KernelVersion = "10.0.22631",
         Machine = "x86_64",
+        CpuCoresPercent = new[] { 10.0, 20.0, 30.0, 40.0 },
     };
+        snap.SetTemperatures(new[] { 40.0, 42.0, 41.0 }, new[] { 55.0 }, new[] { 30.0 });
+        return snap;
+    }
 
     public static ConfigSettings Settings(Dictionary<string, object?>? extra = null)
     {

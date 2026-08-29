@@ -38,7 +38,10 @@ public static class VariableEvaluator
 
             case "cpu":
             {
-                // 单核（$cpu N）P1 细化；P0 输出总占用
+                // $cpu N：单核占用（PerformanceCounter 每核，采集失败回退总占用）
+                var n = ParseInt(Arg(0), -1);
+                if (n >= 1 && n <= data.CpuCoresPercent.Count)
+                    return Percent(data.CpuCoresPercent[n - 1]);
                 return Percent(data.CpuPercent);
             }
             case "cpubar": return null; // 由 BarNode 处理；此处兜底
@@ -108,13 +111,43 @@ public static class VariableEvaluator
                 };
             }
 
+            // 温度（LibreHardwareMonitor 映射，未检测到返回占位）
+            case "platform":
+            {
+                // Conky 语法：${platform <type>.<id> <field> <arg>}，如 ${platform coretemp.0 temp 1}
+                var device = Arg(0).ToLowerInvariant();
+                var field = Arg(1).ToLowerInvariant();
+                var arg = ParseInt(Arg(2), 1) - 1;
+                if (field != "temp") return null;
+                IReadOnlyList<double> list;
+                if (device.Contains("gpu", StringComparison.Ordinal) ||
+                    device.Contains("radeon", StringComparison.Ordinal) ||
+                    device.Contains("nvidia", StringComparison.Ordinal))
+                    list = data.GpuTemps;
+                else if (device.Contains("disk", StringComparison.Ordinal) ||
+                         device.Contains("hdd", StringComparison.Ordinal) ||
+                         device.Contains("sda", StringComparison.Ordinal))
+                    list = data.DiskTemps;
+                else list = data.CpuTemps;
+                return arg >= 0 && arg < list.Count
+                    ? list[arg].ToString("0", System.Globalization.CultureInfo.InvariantCulture)
+                    : null;
+            }
+            case "hddtemp":
+            {
+                // Conky 语法：${hddtemp /dev/sda} → 映射到第一个磁盘温度传感器
+                return data.DiskTemps.Count > 0
+                    ? data.DiskTemps[0].ToString("0", System.Globalization.CultureInfo.InvariantCulture)
+                    : null;
+            }
+
             // P1：exec 异步执行；P0 占位
             case "exec": case "execpi": return null;
 
             // Linux 专属对象：语法完整解析，运行时占位（FR-VAR-2 / §3.4.3）
             case "acpi": case "acpitemp": case "apm_adapter": case "apm_battery": case "apcupsd":
             case "battery": case "battery_time": case "battery_percent": case "battery_short":
-            case "hddtemp": case "platform": case "i2c": case "smapi":
+            case "i2c": case "smapi":
             case "mpd_artist": case "mpd_title": case "mpd_album": case "mpd_vol": case "mpd_random":
             case "mpc": case "xmms2_artist": case "audacious_title":
             case "imap_unseen": case "imap_messages": case "pop3_unseen": case "pop3_messages":

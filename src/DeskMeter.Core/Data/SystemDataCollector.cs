@@ -21,6 +21,18 @@ public sealed class SystemDataCollector : IDisposable
     private string? _osNameCache;
     private string? _kernelCache;
     private bool _osInited;
+    private readonly Dictionary<int, PerformanceCounter> _coreCounters = new();
+    private TemperatureMonitor? _temperature;
+
+    /// <summary>是否启用温度采集（默认启用；deskmeter.temperature=false 可关）。</summary>
+    public TemperatureMonitor? Temperature => _temperature;
+
+    public SystemDataCollector(bool enableTemperature = true)
+    {
+        _temperature = enableTemperature ? new TemperatureMonitor(true) : null;
+    }
+
+    public SystemDataCollector() : this(true) { }
 
     public SystemSnapshot Collect()
     {
@@ -53,7 +65,14 @@ public sealed class SystemDataCollector : IDisposable
             Machine = Environment.Is64BitOperatingSystem ? "x86_64" : "x86",
             TopCpu = topCpu,
             TopMem = topMem,
+            CpuCoresPercent = GetCpuCores(),
         };
+
+        if (_temperature is not null)
+        {
+            var (cpuT, gpuT, diskT) = _temperature.Snapshot();
+            snap.SetTemperatures(cpuT, gpuT, diskT);
+        }
 
         // 磁盘：常见根路径
         foreach (var root in GetDriveRoots())
@@ -65,7 +84,16 @@ public sealed class SystemDataCollector : IDisposable
         return snap;
     }
 
-    public void Dispose() { }
+    public void Dispose()
+    {
+        _temperature?.Dispose();
+        _temperature = null;
+        foreach (var pc in _coreCounters.Values)
+        {
+            try { pc.Dispose(); } catch { }
+        }
+        _coreCounters.Clear();
+    }
 
     // ---- CPU ----
 
@@ -91,6 +119,43 @@ public sealed class SystemDataCollector : IDisposable
 
     private static long ToTicks(System.Runtime.InteropServices.ComTypes.FILETIME ft) =>
         ((long)ft.dwHighDateTime << 32) | (uint)ft.dwLowDateTime;
+
+    // ---- 每核 CPU（PerformanceCounter，失败回退空列表）----
+
+    private double[] GetCpuCores()
+    {
+        try
+        {
+            var cores = Environment.ProcessorCount;
+            var result = new double[cores];
+            for (var i = 0; i < cores; i++)
+            {
+                try
+                {
+                    if (!_coreCounters.TryGetValue(i, out var pc))
+                    {
+                        pc = new PerformanceCounter("Processor", "% Processor Time", i.ToString());
+                        _coreCounters[i] = pc;
+                        pc.NextValue(); // 首采样基线
+                        result[i] = 0;
+                    }
+                    else
+                    {
+                        result[i] = Math.Clamp(pc.NextValue(), 0, 100);
+                    }
+                }
+                catch
+                {
+                    result[i] = 0;
+                }
+            }
+            return result;
+        }
+        catch
+        {
+            return Array.Empty<double>();
+        }
+    }
 
     // ---- 内存（GlobalMemoryStatusEx）----
 

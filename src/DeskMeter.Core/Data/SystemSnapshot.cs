@@ -65,6 +65,18 @@ public sealed class SystemSnapshot
     /// <summary>CPU 占用榜（\${top ...}，按 CpuPercent 降序，前 10）。</summary>
     public IReadOnlyList<ProcessInfo> TopCpu { get; init; } = Array.Empty<ProcessInfo>();
 
+    /// <summary>每核 CPU 占用 %（\${cpu N} 用；采集失败为空）。</summary>
+    public IReadOnlyList<double> CpuCoresPercent { get; init; } = Array.Empty<double>();
+
+    /// <summary>CPU 温度传感器（摄氏，\${platform coretemp.0 temp N} 用）。</summary>
+    public IReadOnlyList<double> CpuTemps { get; private set; } = Array.Empty<double>();
+
+    /// <summary>GPU 温度传感器（摄氏）。</summary>
+    public IReadOnlyList<double> GpuTemps { get; private set; } = Array.Empty<double>();
+
+    /// <summary>磁盘温度传感器（摄氏，\${hddtemp ...} 用）。</summary>
+    public IReadOnlyList<double> DiskTemps { get; private set; } = Array.Empty<double>();
+
     /// <summary>内存占用榜（\${top_mem ...}，按 MemPercent 降序，前 10）。</summary>
     public IReadOnlyList<ProcessInfo> TopMem { get; init; } = Array.Empty<ProcessInfo>();
 
@@ -86,6 +98,14 @@ public sealed class SystemSnapshot
     }
 
     public void SetDisk(string path, DiskInfo info) => _disks[NormalizeDiskPath(path)] = info;
+
+    /// <summary>设置温度传感器列表（不可变快照内更新用）。</summary>
+    public void SetTemperatures(IReadOnlyList<double> cpu, IReadOnlyList<double> gpu, IReadOnlyList<double> disk)
+    {
+        CpuTemps = cpu.ToList();
+        GpuTemps = gpu.ToList();
+        DiskTemps = disk.ToList();
+    }
 
     /// <summary>把 Conky 风格路径（/ 或 C:）归一化为 Windows 盘根目录（C:\）。</summary>
     public static string NormalizeDiskPath(string? path)

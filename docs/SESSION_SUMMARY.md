@@ -102,7 +102,8 @@
    - **已知边界**：`$cpu N` 单核暂用总占用；行内 `${font}` 解析不生效；scroll 的 right/wait 方向与 graph 的 -t/-l/-x/-y/-m 旗标按简化处理；offset/voffset/tab 仍为空格近似；网络/CPU 首采样为 0；**内存占用实测约 133MB > NFR-2（<100MB）目标，待优化（P2）**；鼠标点击小部件受置底（HWND_BOTTOM）限制——被其他窗口覆盖时点击会被上层窗口接收（用户环境实测被全屏 Chrome Legacy Window 拦截）
 2. **P2 首批 ✅（dev 分支）**：Top 进程（`${top name/pid/cpu/mem N}` 与 `${top_mem ...}`，进程 CPU% 增量采样 + MEM%，列格式与 Conky 一致：name 左对齐 top_name_width+1=16、pid %7i、cpu/mem %6.2f；官方 conky.conf 的 top 行已显示真实进程，截图验证非零 CPU%）；系统托盘（NotifyIcon，菜单=设置…/编辑配置…/刷新/开机自启勾选/退出，UseWindowsForms + Using Remove 消除 WPF/WinForms 二义）；多显示器（deskmeter 扩展块已解析合并，`monitor` 键按 Screen.WorkingArea 定位、超界钳制）；开机自启（HKCU Run 注册表键，容错）。
 3. **P2 设置界面 ✅（dev 分支，配置页已按用户决策简化）**：SettingsWindow 三页（常规=刷新间隔/点击穿透/开机自启/显示器下拉；配置页=**内置编辑器已弃用（用户决策：编辑器导入会产生多余空行问题）→ 改为「用系统编辑器打开」（notepad）+ 恢复默认（写回内置配置）；保存时以磁盘当前内容为准，仅写回常规项，热重载自动生效**；关于=版本/MIT/路径/主页）；ConfigWriteBack 纯逻辑写回（update_interval 正则替换/插入、deskmeter 块新建/更新 click_through/monitor，6 条单测）；托盘与鼠标事件（deskmeter.click_through=false 时可点击，单击打开设置）共用 SettingsLauncher 单实例；`--settings` 启动参数用于调试/CI；ConkyCodeEditor 控件文件已删除
-3. **P2 剩余**：温度（LibreHardwareMonitor）、鼠标事件（点击弹设置）、主题、设置界面（GUI 三页）
+4. **P2 温度 + 单核 CPU ✅（dev 分支）**：LibreHardwareMonitorLib 0.9.4 集成（TemperatureMonitor 后台 2s 采集 CPU/GPU/存储温度，SensorVisitor 回调，容错）；`${platform <type>.<id> temp N}` 映射（coretemp→CPU、radeon/nvidia/gpu→GPU、disk/hdd→存储），`${hddtemp /dev/sda}` → 第一磁盘传感器，无传感器显示 `--`（实测 GPU 温度 51°C 采集成功；CPU 温度通常需管理员权限）；`$cpu N` 单核占用（PerformanceCounter 每核，失败回退总占用，首采样 0）；`deskmeter.temperature=false` 可关闭采集（SystemDataCollector 构造参数）；6 条单测
+5. **P2 剩余**：主题、内存优化（133MB→<100MB）、`$cpu N` 已做（边界项完成：行内 ${font}、scroll right/wait、graph 旗标、offset/voffset/tab 像素化仍待做）
 3. **P2**：温度（LibreHardwareMonitor）、Top 进程、鼠标事件（点击弹设置）、托盘、自启、多显示器、主题、设置界面
 4. **GitHub 待办**：仓库 About 描述写的是 "C# (Avalonia)"，需改为 WPF（用户手动改，暂缓）
 
