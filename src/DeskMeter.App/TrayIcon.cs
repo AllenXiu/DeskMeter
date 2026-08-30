@@ -19,6 +19,7 @@ public sealed class TrayIcon : IDisposable
     private readonly ConfigManager _configs;
     private readonly ToolStripMenuItem _configMenu;
     private readonly ToolStripMenuItem _autostartItem;
+    private readonly ToolStripMenuItem _sortMenu;
 
     public TrayIcon(WidgetWindow window, string configPath, ConfigManager configs)
     {
@@ -35,6 +36,9 @@ public sealed class TrayIcon : IDisposable
 
         _configMenu = new ToolStripMenuItem("配置▶");
 
+        // Top 排序（任务管理器式；不受点击穿透影响，点击表头在 click_through=false 时也可用）
+        _sortMenu = new ToolStripMenuItem("Top 排序");
+
         _autostartItem = new ToolStripMenuItem("开机自启")
         {
             Checked = Autostart.IsEnabled(),
@@ -50,7 +54,7 @@ public sealed class TrayIcon : IDisposable
         var menu = new ContextMenuStrip();
         menu.Items.AddRange(new ToolStripItem[]
         {
-            _configMenu, _autostartItem, about,
+            _configMenu, _sortMenu, _autostartItem, about,
             new ToolStripSeparator(),
             exit,
         });
@@ -59,6 +63,7 @@ public sealed class TrayIcon : IDisposable
         {
             _autostartItem.Checked = Autostart.IsEnabled();
             RebuildConfigMenu();
+            RebuildSortMenu();
         };
         _icon.ContextMenuStrip = menu;
     }
@@ -89,6 +94,30 @@ public sealed class TrayIcon : IDisposable
         _configMenu.DropDownItems.Add("删除", null, (_, _) => DeleteConfig());
         _configMenu.DropDownItems.Add(new ToolStripSeparator());
         _configMenu.DropDownItems.Add("用记事本编辑当前配置", null, (_, _) => OpenConfigEditor());
+    }
+
+    /// <summary>重建"Top 排序"子菜单：cpu/mem/pid/name/disk/gpu/net 单选，当前项勾选。</summary>
+    private void RebuildSortMenu()
+    {
+        _sortMenu.DropDownItems.Clear();
+        var current = _window.CurrentTopSort;
+        foreach (var key in new[] { "cpu", "mem", "pid", "name", "disk", "gpu", "net" })
+        {
+            var label = key switch
+            {
+                "cpu" => "CPU%",
+                "mem" => "内存%",
+                "pid" => "PID",
+                "name" => "名称",
+                "disk" => "磁盘 IO",
+                "gpu" => "GPU%",
+                "net" => "连接数",
+                _ => key,
+            };
+            var item = new ToolStripMenuItem(label) { Checked = key == current };
+            item.Click += (_, _) => _window.SetTopSort(key);
+            _sortMenu.DropDownItems.Add(item);
+        }
     }
 
     private void SwitchTo(ConfigEntry entry)

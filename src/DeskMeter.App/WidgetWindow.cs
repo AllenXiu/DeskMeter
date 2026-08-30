@@ -194,6 +194,17 @@ public sealed class WidgetWindow : Window
     [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true)]
     private static extern bool SetProcessWorkingSetSize(IntPtr proc, int min, int max);
 
+    /// <summary>当前 Top 排序键（托盘「Top 排序」用）。</summary>
+    public string CurrentTopSort => _topSort;
+
+    /// <summary>设置 Top 排序键（托盘「Top 排序」用）。</summary>
+    public void SetTopSort(string sort)
+    {
+        if (!new[] { "cpu", "mem", "pid", "name", "disk", "gpu", "net" }.Contains(sort)) return;
+        _topSort = sort;
+        Refresh();
+    }
+
     /// <summary>点击表头循环切换 Top 排序（cpu→mem→disk→gpu→net→pid→name）。</summary>
     private void CycleTopSort()
     {
