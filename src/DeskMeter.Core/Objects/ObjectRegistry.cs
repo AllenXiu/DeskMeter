@@ -66,6 +66,10 @@ public sealed class ObjectRegistry
 
         // 曲线图（矢量 Graph，Conky 语义：高度[,宽度]，环形缓冲 80 点）
         Register("cpugraph", (args, s) => new GraphNode(d => d.CpuPercent, args, s));
+        Register("diskiograph", (args, s) => new GraphNode(d => d.DiskReadBytesPerSec + d.DiskWriteBytesPerSec, args, s));
+        Register("diskiograph_read", (args, s) => new GraphNode(d => d.DiskReadBytesPerSec, args, s));
+        Register("diskiograph_write", (args, s) => new GraphNode(d => d.DiskWriteBytesPerSec, args, s));
+        Register("battery_bar", (args, s) => new BarNode(d => d.BatteryPercent, args, s));
         Register("downspeedgraph", (args, s) => new GraphNode(d => d.DownSpeedBytesPerSec, args, s));
         Register("upspeedgraph", (args, s) => new GraphNode(d => d.UpSpeedBytesPerSec, args, s));
 
@@ -76,6 +80,7 @@ public sealed class ObjectRegistry
             "fs_used_perc", "fs_type", "downspeed", "upspeed", "downspeedf", "upspeedf",
             "totaldown", "totalup", "processes", "running_processes", "freq", "freq_g",
             "top", "top_mem", "addr", "addrs", "gw_ip", "gw_iface", "iface", "nameserver", "loadavg",
+            "diskio", "diskio_read", "diskio_write", "battery_status",
             "acpi", "acpitemp", "apm_adapter", "apm_battery", "apcupsd", "battery", "battery_time",
             "battery_percent", "battery_short", "hddtemp", "platform", "i2c", "smapi",
             "mpd_artist", "mpd_title", "mpd_album", "mpd_vol", "mpd_random", "mpc",

@@ -79,6 +79,15 @@ public sealed class SystemSnapshot
     public double LoadAvg5 { get; init; }
     public double LoadAvg15 { get; init; }
 
+    // ---- 磁盘 IO 速率（diskio_read/write，PerformanceCounter PhysicalDisk 每秒字节）----
+    public double DiskReadBytesPerSec { get; init; }
+    public double DiskWriteBytesPerSec { get; init; }
+
+    // ---- 电池（GetSystemPowerStatus，无电池时 Percent=-1）----
+    public double BatteryPercent { get; init; } = -1;
+    public double BatteryRemainingSeconds { get; init; }
+    public string BatteryStatus { get; init; } = string.Empty;
+
     /// <summary>CPU 温度传感器（摄氏，\${platform coretemp.0 temp N} 用）。</summary>
     public IReadOnlyList<double> CpuTemps { get; private set; } = Array.Empty<double>();
 

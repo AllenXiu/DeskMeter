@@ -19,6 +19,14 @@ public class P2WindowsCompatTests
         return layout.ToConsoleText().TrimEnd('\r', '\n');
     }
 
+    private WidgetLayout RenderLayout(string conkyText, SystemSnapshot? snap = null)
+    {
+        var layout = new WidgetLayout();
+        var ctx = new RenderContext(snap ?? TestHelpers.FakeSnapshot(), _settings, layout);
+        foreach (var node in ConkyTextParser.Parse(conkyText, _registry, _settings)) node.Print(ctx);
+        return layout;
+    }
+
     // ---- if_* 条件块 ----
 
     [Fact]
@@ -224,5 +232,58 @@ public class P2WindowsCompatTests
         var nodes = ConkyTextParser.Parse("${lua not_a_function}", _registry, cfg.Settings);
         foreach (var node in nodes) node.Print(ctx);
         Assert.Equal("--", layout.ToConsoleText().TrimEnd('\r', '\n'));
+    }
+
+    // ---- 磁盘 IO + 电池（第 3 批）----
+
+    private static SystemSnapshot IoBattSnap() => new()
+    {
+        DiskReadBytesPerSec = 1024 * 1024,
+        DiskWriteBytesPerSec = 512 * 1024,
+        BatteryPercent = 86,
+        BatteryRemainingSeconds = 2 * 3600 + 34 * 60 + 5,
+        BatteryStatus = "discharging",
+    };
+
+    [Fact]
+    public void DiskIo_Variables_FormatRates()
+    {
+        var snap = IoBattSnap();
+        Assert.Equal("1MiB/s", VariableEvaluator.Evaluate("diskio_read", Array.Empty<string>(), snap, _settings));
+        Assert.Equal("512KiB/s", VariableEvaluator.Evaluate("diskio_write", Array.Empty<string>(), snap, _settings));
+        Assert.Equal("1.5MiB/s", VariableEvaluator.Evaluate("diskio", Array.Empty<string>(), snap, _settings));
+    }
+
+    [Fact]
+    public void DiskIoGraphs_ProduceGraphElements()
+    {
+        var layout = RenderLayout("${diskiograph_read 10,50}${diskiograph_write 10,50}", IoBattSnap());
+        Assert.IsType<WidgetGraph>(layout.Lines[0].Elements[0]);
+        Assert.IsType<WidgetGraph>(layout.Lines[0].Elements[1]);
+    }
+
+    [Fact]
+    public void Battery_Variables_FormatValues()
+    {
+        var snap = IoBattSnap();
+        Assert.Equal("86%", VariableEvaluator.Evaluate("battery", Array.Empty<string>(), snap, _settings));
+        Assert.Equal("86", VariableEvaluator.Evaluate("battery_percent", Array.Empty<string>(), snap, _settings));
+        Assert.Equal("2:34:05", VariableEvaluator.Evaluate("battery_time", Array.Empty<string>(), snap, _settings));
+        Assert.Equal("2:34", VariableEvaluator.Evaluate("battery_short", Array.Empty<string>(), snap, _settings));
+        Assert.Equal("discharging", VariableEvaluator.Evaluate("battery_status", Array.Empty<string>(), snap, _settings));
+    }
+
+    [Fact]
+    public void BatteryBar_ProducesBarElement()
+    {
+        var layout = RenderLayout("${battery_bar 4}", IoBattSnap());
+        var bar = Assert.IsType<WidgetBar>(layout.Lines[0].Elements[0]);
+        Assert.Equal(86, bar.Percent);
+    }
+
+    [Fact]
+    public void Battery_NoBattery_Placeholder()
+    {
+        Assert.Null(VariableEvaluator.Evaluate("battery_percent", Array.Empty<string>(), TestHelpers.FakeSnapshot(), _settings));
     }
 }

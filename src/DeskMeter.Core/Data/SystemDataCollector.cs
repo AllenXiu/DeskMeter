@@ -27,6 +27,8 @@ public sealed class SystemDataCollector : IDisposable
     private string _defaultIface = string.Empty;
     private int _netInfoRescan;
     private readonly List<double> _cpuHistory = new(); // loadavg：最近 900 秒 CPU 占用历史
+    private PerformanceCounter? _diskReadCounter;
+    private PerformanceCounter? _diskWriteCounter;
     private string? _freqCache;
     private string? _osNameCache;
     private string? _kernelCache;
@@ -57,6 +59,8 @@ public sealed class SystemDataCollector : IDisposable
         // 进程数据每 tick 只枚举一次（计数 + 运行数 + top 榜共用），并全部 Dispose 防止句柄/内存泄漏
         var procSnap = CollectProcesses(DateTime.UtcNow, memTotal);
         var (topCpu, topMem) = GetTopProcesses(procSnap.Items, 10);
+        var (diskRead, diskWrite) = GetDiskIo();
+        var (battPercent, battSeconds, battStatus) = GetBattery();
 
         var snap = new SystemSnapshot
         {
@@ -88,6 +92,11 @@ public sealed class SystemDataCollector : IDisposable
             LoadAvg1 = AverageHistory(60),
             LoadAvg5 = AverageHistory(300),
             LoadAvg15 = AverageHistory(900),
+            DiskReadBytesPerSec = diskRead,
+            DiskWriteBytesPerSec = diskWrite,
+            BatteryPercent = battPercent,
+            BatteryRemainingSeconds = battSeconds,
+            BatteryStatus = battStatus,
         };
 
         if (_temperature is not null)
@@ -115,6 +124,8 @@ public sealed class SystemDataCollector : IDisposable
             try { pc.Dispose(); } catch { }
         }
         _coreCounters.Clear();
+        try { _diskReadCounter?.Dispose(); } catch { }
+        try { _diskWriteCounter?.Dispose(); } catch { }
     }
 
     // ---- CPU ----
@@ -452,6 +463,59 @@ public sealed class SystemDataCollector : IDisposable
         try { return f(); }
         catch { return default; }
     }
+
+    // ---- 磁盘 IO 速率（PhysicalDisk 计数器，字节/秒）----
+
+    private (double read, double write) GetDiskIo()
+    {
+        try
+        {
+            _diskReadCounter ??= new PerformanceCounter("PhysicalDisk", "Disk Read Bytes/sec", "_Total");
+            _diskWriteCounter ??= new PerformanceCounter("PhysicalDisk", "Disk Write Bytes/sec", "_Total");
+            return (Math.Max(0, _diskReadCounter.NextValue()), Math.Max(0, _diskWriteCounter.NextValue()));
+        }
+        catch
+        {
+            return (0, 0);
+        }
+    }
+
+    // ---- 电池（GetSystemPowerStatus，无依赖）----
+
+    private static (double percent, double seconds, string status) GetBattery()
+    {
+        try
+        {
+            if (!GetSystemPowerStatus(out var sps)) return (-1, 0, string.Empty);
+            var percent = sps.BatteryLifePercent == 255 ? -1 : sps.BatteryLifePercent;
+            var seconds = sps.BatteryLifeTime == uint.MaxValue ? 0 : sps.BatteryLifeTime;
+            string status;
+            if (sps.ACLineStatus == 1)
+                status = (sps.BatteryFlag & 8) != 0 ? "charging" : "full";
+            else
+                status = "discharging";
+            return (percent, seconds, status);
+        }
+        catch
+        {
+            return (-1, 0, string.Empty);
+        }
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct SYSTEM_POWER_STATUS
+    {
+        public byte ACLineStatus;
+        public byte BatteryFlag;
+        public byte BatteryLifePercent;
+        public byte SystemStatusFlag;
+        public uint BatteryLifeTime;
+        public uint BatteryFullLifeTime;
+    }
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetSystemPowerStatus(out SYSTEM_POWER_STATUS lpSystemPowerStatus);
 
     // ---- P/Invoke ----
 

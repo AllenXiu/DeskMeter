@@ -159,6 +159,12 @@ DeskMeter 兼容 Conky 的 `conky.text` 语法：`$name` 与 `${name args}` 两�
 | `$gw_ip` / `$gw_iface` / `$iface` | 默认网关 IP / 网卡名 | ✅ |
 | `$nameserver` | DNS 服务器 | ✅ |
 | `$loadavg` | 1/5/15 分钟 CPU 占用均值（Windows 用 CPU 历史近似） | ✅ |
+| `$diskio` / `$diskio_read` / `$diskio_write` | 磁盘 IO 总/读/写速率（PhysicalDisk 计数器） | ✅ |
+| `${diskiograph [旗标] 高,宽}` 及 `_read` / `_write` | 磁盘 IO 速率曲线图 | ✅ |
+| `$battery` / `$battery_percent` | 电池电量 % | ✅ |
+| `$battery_time` / `$battery_short` | 剩余时间（H:mm:ss / H:mm） | ✅ |
+| `$battery_status` | charging / full / discharging（GetSystemPowerStatus） | ✅ |
+| `${battery_bar 高,宽}` | 电池电量进度条 | ✅ |
 
 ## 通用行为
 

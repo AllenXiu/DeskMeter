@@ -157,9 +157,20 @@ public static class VariableEvaluator
             // P1：exec 异步执行；P0 占位
             case "exec": case "execpi": return null;
 
+            // 磁盘 IO 速率（Windows 替代 Conky diskio 系列）
+            case "diskio": return Human(data.DiskReadBytesPerSec + data.DiskWriteBytesPerSec) + "/s";
+            case "diskio_read": return Human(data.DiskReadBytesPerSec) + "/s";
+            case "diskio_write": return Human(data.DiskWriteBytesPerSec) + "/s";
+
+            // 电池（GetSystemPowerStatus；无电池返回占位）
+            case "battery": return data.BatteryPercent < 0 ? null : data.BatteryPercent.ToString("0", System.Globalization.CultureInfo.InvariantCulture) + "%";
+            case "battery_percent": return data.BatteryPercent < 0 ? null : data.BatteryPercent.ToString("0", System.Globalization.CultureInfo.InvariantCulture);
+            case "battery_status": return string.IsNullOrEmpty(data.BatteryStatus) ? null : data.BatteryStatus;
+            case "battery_time": return data.BatteryRemainingSeconds <= 0 ? null : FormatBatteryTime(data.BatteryRemainingSeconds);
+            case "battery_short": return data.BatteryRemainingSeconds <= 0 ? null : FormatBatteryShort(data.BatteryRemainingSeconds);
+
             // Linux 专属对象：语法完整解析，运行时占位（FR-VAR-2 / §3.4.3）
             case "acpi": case "acpitemp": case "apm_adapter": case "apm_battery": case "apcupsd":
-            case "battery": case "battery_time": case "battery_percent": case "battery_short":
             case "i2c": case "smapi":
             case "mpd_artist": case "mpd_title": case "mpd_album": case "mpd_vol": case "mpd_random":
             case "mpc": case "xmms2_artist": case "audacious_title":
@@ -170,6 +181,18 @@ public static class VariableEvaluator
             default:
                 return null;
         }
+    }
+
+    private static string FormatBatteryTime(double seconds)
+    {
+        var t = TimeSpan.FromSeconds(seconds);
+        return $"{(int)t.TotalHours}:{t.Minutes:D2}:{t.Seconds:D2}";
+    }
+
+    private static string FormatBatteryShort(double seconds)
+    {
+        var t = TimeSpan.FromSeconds(seconds);
+        return $"{(int)t.TotalHours}:{t.Minutes:D2}";
     }
 
     private static int ParseInt(string s, int fallback)
