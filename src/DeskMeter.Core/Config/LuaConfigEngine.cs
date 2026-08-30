@@ -54,7 +54,7 @@ public sealed class LuaConfigEngine
         var settings = ParseSettings(conkyTable.Get("config"), script.Globals.Get("deskmeter"));
         var text = ParseText(conkyTable.Get("text"));
 
-        return new ConkyConfig(sourcePath, settings, text, luaSource);
+        return new ConkyConfig(sourcePath, settings, text, luaSource, script);
     }
 
     /// <summary>

@@ -49,6 +49,21 @@ public sealed class ObjectRegistry
         Register("exec", (args, _) => new ExecNode(args, periodic: false));
         Register("execpi", (args, _) => new ExecNode(args, periodic: true));
 
+        // 文本处理（纯字符串操作，Windows 无关）
+        foreach (var t in new[] { "words", "uppercase", "lowercase", "startcase", "rstrip", "eval", "to_bytes", "combine", "lines", "head", "tail" })
+            Register(t, (args, settings) => new TextOpNode(t, args, this, settings));
+
+        // exec 输出 → 进度条/曲线图（Conky execbar/execgraph 家族）
+        Register("execbar", (args, settings) => new ExecBarGraphNode(args, settings, graph: false, periodic: false));
+        Register("execgauge", (args, settings) => new ExecBarGraphNode(args, settings, graph: false, periodic: false));
+        Register("execibar", (args, settings) => new ExecBarGraphNode(args, settings, graph: false, periodic: true));
+        Register("execigauge", (args, settings) => new ExecBarGraphNode(args, settings, graph: false, periodic: true));
+        Register("execgraph", (args, settings) => new ExecBarGraphNode(args, settings, graph: true, periodic: false));
+        Register("execigraph", (args, settings) => new ExecBarGraphNode(args, settings, graph: true, periodic: true));
+
+        // lua 变量：调用配置内定义的函数
+        Register("lua", (args, settings) => new LuaNode(args, this, settings));
+
         // 曲线图（矢量 Graph，Conky 语义：高度[,宽度]，环形缓冲 80 点）
         Register("cpugraph", (args, s) => new GraphNode(d => d.CpuPercent, args, s));
         Register("downspeedgraph", (args, s) => new GraphNode(d => d.DownSpeedBytesPerSec, args, s));

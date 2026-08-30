@@ -617,3 +617,319 @@ public sealed class ConditionalNode : ObjectNode
         };
     }
 }
+/// <summary>
+/// 文本处理变量（Conky 纯字符串操作，Windows 无关）：
+/// words / uppercase / lowercase / startcase / rstrip / eval / to_bytes / combine / lines / head / tail。
+/// 参数先展开嵌套变量再处理（与 Conky generate_text_internal 一致）。
+/// </summary>
+public sealed class TextOpNode : ObjectNode
+{
+    private readonly string _kind;
+    private readonly string[] _args;
+    private readonly ObjectRegistry _registry;
+    private readonly ConfigSettings _settings;
+
+    public TextOpNode(string kind, string[] args, ObjectRegistry registry, ConfigSettings settings)
+    {
+        _kind = kind;
+        _args = args;
+        _registry = registry;
+        _settings = settings;
+    }
+
+    public override void Print(RenderContext ctx)
+    {
+        try
+        {
+            var expanded = _args.Select(a => Expand(ctx, a)).ToArray();
+            switch (_kind)
+            {
+                case "words":
+                    ctx.Layout.AppendText(expanded.Length == 0 ? "0" : string.Join(" ", expanded)
+                        .Split(new[] { ' ', '\t', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries).Length.ToString(),
+                        ctx.CurrentBrush, ctx.CurrentFont);
+                    break;
+                case "uppercase":
+                    ctx.Layout.AppendText(string.Join(" ", expanded).ToUpperInvariant(), ctx.CurrentBrush, ctx.CurrentFont);
+                    break;
+                case "lowercase":
+                    ctx.Layout.AppendText(string.Join(" ", expanded).ToLowerInvariant(), ctx.CurrentBrush, ctx.CurrentFont);
+                    break;
+                case "startcase":
+                {
+                    var txt = string.Join(" ", expanded);
+                    var sb = new System.Text.StringBuilder(txt.Length);
+                    var prevSpace = true;
+                    foreach (var ch in txt)
+                    {
+                        sb.Append(prevSpace && char.IsLetter(ch) ? char.ToUpperInvariant(ch) : ch);
+                        prevSpace = char.IsWhiteSpace(ch);
+                    }
+                    ctx.Layout.AppendText(sb.ToString(), ctx.CurrentBrush, ctx.CurrentFont);
+                    break;
+                }
+                case "rstrip":
+                    ctx.Layout.AppendText(string.Join(" ", expanded).TrimEnd(), ctx.CurrentBrush, ctx.CurrentFont);
+                    break;
+                case "eval":
+                    ctx.Layout.AppendText(Expand(ctx, string.Join(" ", _args)), ctx.CurrentBrush, ctx.CurrentFont);
+                    break;
+                case "to_bytes":
+                    ctx.Layout.AppendText(ToBytes(expanded.Length > 0 ? expanded[0] : string.Empty), ctx.CurrentBrush, ctx.CurrentFont);
+                    break;
+                case "combine":
+                    ctx.Layout.AppendText(expanded.Length > 1 ? string.Join(expanded[0], expanded.Skip(1)) : string.Empty, ctx.CurrentBrush, ctx.CurrentFont);
+                    break;
+                case "lines":
+                    ctx.Layout.AppendText(expanded.Length > 0 && System.IO.File.Exists(expanded[0])
+                        ? System.IO.File.ReadLines(expanded[0]).Count().ToString() : "--", ctx.CurrentBrush, ctx.CurrentFont);
+                    break;
+                case "head":
+                case "tail":
+                    AppendFileLines(ctx, expanded, _kind == "tail");
+                    break;
+            }
+        }
+        catch
+        {
+            ctx.Layout.AppendText("--", ctx.CurrentBrush, ctx.CurrentFont);
+        }
+    }
+
+    private void AppendFileLines(RenderContext ctx, string[] expanded, bool tail)
+    {
+        if (expanded.Length < 2 || !int.TryParse(expanded[0], out var count) || !System.IO.File.Exists(expanded[1]))
+        {
+            ctx.Layout.AppendText("--", ctx.CurrentBrush, ctx.CurrentFont);
+            return;
+        }
+        var lines = System.IO.File.ReadLines(expanded[1]).ToList();
+        var range = tail ? lines.Skip(Math.Max(0, lines.Count - Math.Max(1, count))) : lines.Take(Math.Max(1, count));
+        var first = true;
+        foreach (var line in range)
+        {
+            if (!first) ctx.Layout.NewLine();
+            ctx.Layout.AppendText(line, ctx.CurrentBrush, ctx.CurrentFont);
+            first = false;
+        }
+    }
+
+    private static string ToBytes(string s)
+    {
+        s = s.Trim();
+        if (double.TryParse(s, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var plain))
+            return ((long)plain).ToString(System.Globalization.CultureInfo.InvariantCulture);
+        var m = System.Text.RegularExpressions.Regex.Match(s, @"^([0-9.]+)\s*(B|K|KB|KiB|M|MB|MiB|G|GB|GiB|T|TB|TiB)?$",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        if (!m.Success) return "--";
+        var v = double.Parse(m.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture);
+        var mult = m.Groups[2].Value.ToUpperInvariant() switch
+        {
+            "B" or "" => 1L,
+            "K" or "KB" or "KIB" => 1024L,
+            "M" or "MB" or "MIB" => 1024L * 1024,
+            "G" or "GB" or "GIB" => 1024L * 1024 * 1024,
+            "T" or "TB" or "TIB" => 1024L * 1024 * 1024 * 1024,
+            _ => 1L,
+        };
+        return ((long)(v * mult)).ToString(System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    private string Expand(RenderContext ctx, string arg)
+    {
+        if (!arg.Contains("${", StringComparison.Ordinal)) return arg;
+        var temp = new WidgetLayout();
+        var tempCtx = new RenderContext(ctx.Data, ctx.Settings, temp)
+        {
+            CurrentBrush = ctx.CurrentBrush,
+            CurrentFont = ctx.CurrentFont,
+            UpdateNumber = ctx.UpdateNumber,
+            LuaScript = ctx.LuaScript,
+        };
+        foreach (var node in ConkyTextParser.Parse(arg, _registry, _settings)) node.Print(tempCtx);
+        return string.Concat(temp.Lines.SelectMany(l => l.Elements.OfType<WidgetText>().Select(t => t.Text)));
+    }
+}
+
+/// <summary>命令输出缓存（execbar/execgraph 用；与 ExecNode 相同异步语义）。</summary>
+internal sealed class ExecOutputCache
+{
+    private const string Placeholder = "--";
+    private const int MaxOutputLength = 1024;
+    private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(3);
+    private readonly string _command;
+    private readonly TimeSpan? _interval;
+    private readonly object _lock = new();
+    private string? _output;
+    private DateTime _lastStart;
+    private bool _running;
+
+    public ExecOutputCache(string command, TimeSpan? interval)
+    {
+        _command = command;
+        _interval = interval;
+    }
+
+    public string Get()
+    {
+        lock (_lock)
+        {
+            var due = _output is null || _interval is null || DateTime.UtcNow - _lastStart >= _interval.Value;
+            if (due && !_running)
+            {
+                _running = true;
+                _lastStart = DateTime.UtcNow;
+                _ = RunAsync();
+            }
+            return _output ?? Placeholder;
+        }
+    }
+
+    private async Task RunAsync()
+    {
+        System.Diagnostics.Process? process = null;
+        try
+        {
+            using var cts = new CancellationTokenSource(Timeout);
+            var psi = new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = "cmd.exe",
+                Arguments = "/c " + _command,
+                RedirectStandardOutput = true,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            };
+            process = System.Diagnostics.Process.Start(psi);
+            if (process is null) return;
+            var stdout = await process.StandardOutput.ReadToEndAsync(cts.Token);
+            await process.WaitForExitAsync(cts.Token);
+            var text = stdout.TrimEnd('\r', '\n');
+            lock (_lock) _output = text.Length > MaxOutputLength ? text[..MaxOutputLength] : text;
+        }
+        catch (OperationCanceledException)
+        {
+            try { process?.Kill(entireProcessTree: true); } catch { }
+        }
+        catch { }
+        finally
+        {
+            lock (_lock) _running = false;
+        }
+    }
+}
+
+/// <summary>
+/// execbar / execgauge / execibar / execigauge（命令输出首数字 0-100 → 矢量进度条）与
+/// execgraph / execigraph（命令输出 → 曲线图采样）。
+/// </summary>
+public sealed class ExecBarGraphNode : ObjectNode
+{
+    private readonly ExecOutputCache _cache;
+    private readonly double _height;
+    private readonly double _width;
+    private readonly bool _graph;
+    private readonly double[] _samples = new double[80];
+    private int _count;
+
+    public ExecBarGraphNode(string[] args, ConfigSettings settings, bool graph, bool periodic)
+    {
+        _graph = graph;
+        string command;
+        TimeSpan? interval = null;
+        if (periodic && args.Length >= 2 && double.TryParse(args[0],
+                System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var sec) && sec > 0)
+        {
+            interval = TimeSpan.FromSeconds(sec);
+            command = string.Join(" ", args[1..]);
+        }
+        else
+        {
+            command = string.Join(" ", args);
+        }
+        _cache = new ExecOutputCache(command, interval);
+        var defaultHeight = settings.GetNumber(graph ? "default_graph_height" : "default_bar_height", graph ? 25 : 6);
+        var defaultWidth = settings.GetNumber(graph ? "default_graph_width" : "default_bar_width", 0);
+        _height = defaultHeight;
+        _width = defaultWidth;
+    }
+
+    public override void Print(RenderContext ctx)
+    {
+        var output = _cache.Get();
+        var v = double.TryParse(output?.Trim().Split(' ')[0] ?? string.Empty,
+            System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var d) ? d : 0;
+        v = Math.Clamp(v, 0, 100);
+        if (!_graph)
+        {
+            ctx.Layout.AppendBar(v, ctx.CurrentBrush, _height, _width);
+            return;
+        }
+        if (_count < _samples.Length) _samples[_count++] = v;
+        else
+        {
+            Array.Copy(_samples, 1, _samples, 0, _samples.Length - 1);
+            _samples[_samples.Length - 1] = v;
+        }
+        var series = new double[_count];
+        Array.Copy(_samples, series, _count);
+        ctx.Layout.AppendGraph(series, ctx.CurrentBrush, _height, _width);
+    }
+}
+
+/// <summary>${lua 函数 [参数...]}：调用 conky.config 里定义的 Lua 函数并显示返回值。</summary>
+public sealed class LuaNode : ObjectNode
+{
+    private readonly string _func;
+    private readonly string[] _args;
+    private readonly ObjectRegistry _registry;
+    private readonly ConfigSettings _settings;
+
+    public LuaNode(string[] args, ObjectRegistry registry, ConfigSettings settings)
+    {
+        _func = args.Length > 0 ? args[0] : string.Empty;
+        _args = args.Length > 1 ? args[1..] : Array.Empty<string>();
+        _registry = registry;
+        _settings = settings;
+    }
+
+    public override void Print(RenderContext ctx)
+    {
+        if (string.IsNullOrEmpty(_func) || ctx.LuaScript is not MoonSharp.Interpreter.Script script)
+        {
+            ctx.Layout.AppendText("--", ctx.CurrentBrush, ctx.CurrentFont);
+            return;
+        }
+        try
+        {
+            var fn = script.Globals.Get(_func);
+            if (fn.IsNil())
+            {
+                ctx.Layout.AppendText("--", ctx.CurrentBrush, ctx.CurrentFont);
+                return;
+            }
+            var callArgs = _args.Select(a => MoonSharp.Interpreter.DynValue.NewString(Expand(ctx, a))).ToArray();
+            var result = script.Call(fn, callArgs);
+            var text = result.IsNil() ? string.Empty : result.CastToString() ?? result.ToPrintString();
+            ctx.Layout.AppendText(text, ctx.CurrentBrush, ctx.CurrentFont);
+        }
+        catch
+        {
+            ctx.Layout.AppendText("--", ctx.CurrentBrush, ctx.CurrentFont);
+        }
+    }
+
+    private string Expand(RenderContext ctx, string arg)
+    {
+        if (!arg.Contains("${", StringComparison.Ordinal)) return arg;
+        var temp = new WidgetLayout();
+        var tempCtx = new RenderContext(ctx.Data, ctx.Settings, temp)
+        {
+            CurrentBrush = ctx.CurrentBrush,
+            CurrentFont = ctx.CurrentFont,
+            UpdateNumber = ctx.UpdateNumber,
+            LuaScript = ctx.LuaScript,
+        };
+        foreach (var node in ConkyTextParser.Parse(arg, _registry, _settings)) node.Print(tempCtx);
+        return string.Concat(temp.Lines.SelectMany(l => l.Elements.OfType<WidgetText>().Select(t => t.Text)));
+    }
+}

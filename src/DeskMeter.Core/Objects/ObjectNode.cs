@@ -28,6 +28,9 @@ public sealed class RenderContext
 
     /// <summary>当前刷新序号（if_updatenr 用；由宿主每次刷新递增）。</summary>
     public int UpdateNumber { get; set; }
+
+    /// <summary>配置编译后的 Lua 脚本（${lua 函数} 变量用；无则显示占位）。</summary>
+    public MoonSharp.Interpreter.Script? LuaScript { get; set; }
 }
 
 /// <summary>

@@ -24,7 +24,7 @@ public static class ConsoleRunner
             var data = collector.Collect();
 
             var layout = new WidgetLayout();
-            var ctx = new RenderContext(data, config.Settings, layout);
+            var ctx = new RenderContext(data, config.Settings, layout) { LuaScript = config.LuaScript };
             foreach (var node in nodes) node.Print(ctx);
 
             Console.Out.WriteLine("---- " + Path.GetFileName(options.ConfigPath) + " ----");

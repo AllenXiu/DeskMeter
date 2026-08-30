@@ -26,6 +26,7 @@ public sealed class WidgetWindow : Window
 
     private ConfigSettings _settings;
     private int _updateCount; // if_updatenr：刷新序号
+    private MoonSharp.Interpreter.Script? _luaScript; // ${lua 函数} 变量：配置编译脚本
     private List<ObjectNode> _nodes = new();
     private WidgetVisual _visual = null!;
 
@@ -146,6 +147,7 @@ public sealed class WidgetWindow : Window
     {
         var config = _engine.LoadFile(_configPath);
         _settings = config.Settings;
+        _luaScript = config.LuaScript;
         _nodes = ConkyTextParser.Parse(config.Text, _registry, config.Settings);
         // 新配置：重置稳定宽度基线（防旧的宽内容残留）
         _visual?.ResetStableWidth();
@@ -157,7 +159,7 @@ public sealed class WidgetWindow : Window
         {
             var data = _collector.Collect();
             var layout = new WidgetLayout();
-            var ctx = new RenderContext(data, _settings, layout) { UpdateNumber = ++_updateCount };
+            var ctx = new RenderContext(data, _settings, layout) { UpdateNumber = ++_updateCount, LuaScript = _luaScript };
             foreach (var node in _nodes) node.Print(ctx);
 
             _visual.Update(layout, RenderOptions.FromSettings(_settings));

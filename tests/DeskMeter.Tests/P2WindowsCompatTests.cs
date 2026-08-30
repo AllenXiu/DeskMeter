@@ -144,4 +144,85 @@ public class P2WindowsCompatTests
         var snap = NetSnap();
         Assert.Equal("Y", Render("${if_gw 10.0.0.1}Y${else}N${endif}", snap));
     }
+
+    // ---- 文本处理（第 2 批）----
+
+    [Fact]
+    public void TextOp_UppercaseLowercaseStartcase()
+    {
+        Assert.Equal("HELLO WORLD", Render("${uppercase hello world}"));
+        Assert.Equal("hello world", Render("${lowercase HELLO WORLD}"));
+        Assert.Equal("Hello World", Render("${startcase hello world}"));
+    }
+
+    [Fact]
+    public void TextOp_RstripWords()
+    {
+        Assert.Equal("ab", Render("${rstrip ab   }"));
+        Assert.Equal("3", Render("${words one two three}"));
+    }
+
+    [Fact]
+    public void TextOp_ToBytes()
+    {
+        Assert.Equal("1024", Render("${to_bytes 1KiB}"));
+        Assert.Equal("1073741824", Render("${to_bytes 1GiB}"));
+        Assert.Equal("512", Render("${to_bytes 512}"));
+    }
+
+    [Fact]
+    public void TextOp_CombineAndEval()
+    {
+        Assert.Equal("a-b-c", Render("${combine - a b c}"));
+        Assert.Equal("cpu=12", Render("${eval cpu=${cpu}}")); // 嵌套变量展开
+    }
+
+    [Fact]
+    public void TextOp_LinesHeadTail()
+    {
+        var file = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "dm_txt_" + Guid.NewGuid().ToString("N") + ".txt");
+        System.IO.File.WriteAllLines(file, new[] { "a", "b", "c", "d", "e" });
+        try
+        {
+            Assert.Equal("5", Render("${lines " + file + "}"));
+            Assert.Equal("a\r\nb\r\nc", Render("${head 3 " + file + "}"));
+            Assert.Equal("d\r\ne", Render("${tail 2 " + file + "}"));
+        }
+        finally { System.IO.File.Delete(file); }
+    }
+
+    [Fact]
+    public void ExecBar_FirstPrint_PlaceholderZero()
+    {
+        var layout = new WidgetLayout();
+        var ctx = new RenderContext(TestHelpers.FakeSnapshot(), _settings, layout);
+        var nodes = ConkyTextParser.Parse("${execbar echo 42}", _registry, _settings);
+        foreach (var node in nodes) node.Print(ctx);
+        var bar = Assert.IsType<WidgetBar>(layout.Lines[0].Elements[0]);
+        Assert.Equal(0, bar.Percent); // 首帧无输出 → 0
+    }
+
+    [Fact]
+    public void Lua_Node_CallsConfigFunction()
+    {
+        var engine = new DeskMeter.Core.Config.LuaConfigEngine();
+        var cfg = engine.Parse("function greet(name) return \"Hello, \" .. name end\nconky.config = {}\nconky.text = [[]]");
+        var layout = new WidgetLayout();
+        var ctx = new RenderContext(TestHelpers.FakeSnapshot(), cfg.Settings, layout) { LuaScript = cfg.LuaScript };
+        var nodes = ConkyTextParser.Parse("${lua greet DeskMeter}", _registry, cfg.Settings);
+        foreach (var node in nodes) node.Print(ctx);
+        Assert.Equal("Hello, DeskMeter", layout.ToConsoleText().TrimEnd('\r', '\n'));
+    }
+
+    [Fact]
+    public void Lua_Node_MissingFunction_Placeholder()
+    {
+        var engine = new DeskMeter.Core.Config.LuaConfigEngine();
+        var cfg = engine.Parse("conky.config = {}\nconky.text = [[]]");
+        var layout = new WidgetLayout();
+        var ctx = new RenderContext(TestHelpers.FakeSnapshot(), cfg.Settings, layout) { LuaScript = cfg.LuaScript };
+        var nodes = ConkyTextParser.Parse("${lua not_a_function}", _registry, cfg.Settings);
+        foreach (var node in nodes) node.Print(ctx);
+        Assert.Equal("--", layout.ToConsoleText().TrimEnd('\r', '\n'));
+    }
 }
