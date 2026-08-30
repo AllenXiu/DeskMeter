@@ -97,4 +97,16 @@ public sealed class ConfigSettings
 
     /// <summary>use_spacer：none（默认）/ left / right（Conky：给可变宽字段补空格防抖动）。</summary>
     public string GetUseSpacer() => (GetString("use_spacer") ?? "none").Trim().ToLowerInvariant();
+
+    /// <summary>Top 表是否用到磁盘/GPU/连接数列（deskmeter.top.columns 与 top.sort）——内存优化：未用到就不采集扩展指标。</summary>
+    public (bool Disk, bool Gpu, bool Net) GetTopMetricsNeeded()
+    {
+        var sort = (GetString("top.sort") ?? "cpu").ToLowerInvariant();
+        var disk = sort == "disk" || GetStringList("top.columns").Any(c => c.Equals("disk", StringComparison.OrdinalIgnoreCase) ||
+            c.Equals("disk_read", StringComparison.OrdinalIgnoreCase) || c.Equals("disk_write", StringComparison.OrdinalIgnoreCase));
+        var gpu = sort == "gpu" || GetStringList("top.columns").Any(c => c.Equals("gpu", StringComparison.OrdinalIgnoreCase));
+        var net = sort == "net" || GetStringList("top.columns").Any(c => c.Equals("net", StringComparison.OrdinalIgnoreCase) ||
+            c.Equals("conns", StringComparison.OrdinalIgnoreCase));
+        return (disk, gpu, net);
+    }
 }

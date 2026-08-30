@@ -355,4 +355,20 @@ public class P2WindowsCompatTests
         Assert.Equal("mem", cfg.Settings.GetString("top.sort"));
         Assert.Equal(new[] { "name", "pid", "gpu" }, cfg.Settings.GetStringList("top.columns"));
     }
+
+    [Fact]
+    public void TopMetrics_Needed_FromColumnsAndSort()
+    {
+        var none = TestHelpers.Settings(new Dictionary<string, object?> { ["top.columns"] = new[] { "name", "pid", "cpu", "mem" } });
+        var (d, g, n) = none.GetTopMetricsNeeded();
+        Assert.False(d); Assert.False(g); Assert.False(n);
+
+        var all = TestHelpers.Settings(new Dictionary<string, object?> { ["top.columns"] = new[] { "name", "disk", "gpu", "net" } });
+        (d, g, n) = all.GetTopMetricsNeeded();
+        Assert.True(d); Assert.True(g); Assert.True(n);
+
+        var byGpu = TestHelpers.Settings(new Dictionary<string, object?> { ["top.sort"] = "gpu" });
+        (d, g, n) = byGpu.GetTopMetricsNeeded();
+        Assert.False(d); Assert.True(g); Assert.False(n);
+    }
 }

@@ -65,8 +65,8 @@ public sealed class WidgetWindow : Window
 
         SourceInitialized += (_, _) => ApplyDesktopWindowStyles();
 
-        // 鼠标事件（FR-LATER）：deskmeter.click_through = false 时小部件可点击——
-        // 点击 Top 表头区域切换排序（任务管理器式）；其余区域单击打开设置
+        // 鼠标事件：deskmeter.click_through = false 时可点击——
+        // 点击 Top 表头区域切换排序（任务管理器式；默认点击穿透时为 true 则不生效）
         MouseLeftButtonUp += (_, e) =>
         {
             var pos = e.GetPosition(this);
@@ -75,9 +75,7 @@ public sealed class WidgetWindow : Window
                 pos.Y >= hb.Y && pos.Y <= hb.Y + hb.Height)
             {
                 CycleTopSort();
-                return;
             }
-            SettingsLauncher.Open(_configPath);
         };
         Refresh();
     }
@@ -181,6 +179,7 @@ public sealed class WidgetWindow : Window
         try
         {
             _collector.TopSort = _topSort;
+            (_collector.CollectDiskMetrics, _collector.CollectGpuMetrics, _collector.CollectNetMetrics) = _settings.GetTopMetricsNeeded();
             var data = _collector.Collect();
             var layout = new WidgetLayout();
             var ctx = new RenderContext(data, _settings, layout) { UpdateNumber = ++_updateCount, LuaScript = _luaScript };

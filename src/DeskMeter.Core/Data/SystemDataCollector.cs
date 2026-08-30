@@ -32,6 +32,11 @@ public sealed class SystemDataCollector : IDisposable
 
     // ---- 任务管理器式 Top 扩展指标（磁盘 IO / GPU / 连接数，按需缓存采样）----
     public string TopSort { get; set; } = "cpu"; // cpu|mem|pid|name|disk|gpu|net
+
+    // 内存优化：仅当配置用到对应列/排序键时才采集（默认关，由宿主按配置开启）
+    public bool CollectDiskMetrics { get; set; }
+    public bool CollectGpuMetrics { get; set; }
+    public bool CollectNetMetrics { get; set; }
     private Dictionary<int, string>? _procDiskInstances;
     private int _diskInstanceRescan;
     private readonly Dictionary<string, PerformanceCounter> _ioReadCounters = new();
@@ -450,16 +455,19 @@ public sealed class SystemDataCollector : IDisposable
         var candidates = items.OrderByDescending(x => x.CpuPercent).Take(20)
             .Concat(items.OrderByDescending(x => x.MemPercent).Take(20))
             .Select(x => x.Pid).Distinct().ToHashSet();
-        EnsureProcDiskInstances();
-        EnsureGpuInstances();
-        EnsureConnections();
+        if (CollectDiskMetrics) EnsureProcDiskInstances();
+        if (CollectGpuMetrics) EnsureGpuInstances();
+        if (CollectNetMetrics) EnsureConnections();
         foreach (var item in items)
         {
             if (!candidates.Contains(item.Pid)) continue;
-            item.DiskReadBytesPerSec = DiskIoFor(item.Pid, read: true);
-            item.DiskWriteBytesPerSec = DiskIoFor(item.Pid, read: false);
-            item.GpuPercent = GpuFor(item.Pid);
-            item.NetConnections = _conns is not null && _conns.TryGetValue(item.Pid, out var c) ? c : 0;
+            if (CollectDiskMetrics)
+            {
+                item.DiskReadBytesPerSec = DiskIoFor(item.Pid, read: true);
+                item.DiskWriteBytesPerSec = DiskIoFor(item.Pid, read: false);
+            }
+            if (CollectGpuMetrics) item.GpuPercent = GpuFor(item.Pid);
+            if (CollectNetMetrics) item.NetConnections = _conns is not null && _conns.TryGetValue(item.Pid, out var c) ? c : 0;
         }
 
         IOrderedEnumerable<ProcessInfo> ordered = TopSort.ToLowerInvariant() switch

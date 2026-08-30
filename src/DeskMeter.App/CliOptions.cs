@@ -16,9 +16,6 @@ public sealed class CliOptions
     /// <summary>wpf 模式下创建窗口并自动关闭（CI/冒烟验证）。</summary>
     public bool SmokeTest { get; private set; }
 
-    /// <summary>启动时同时打开设置窗口（调试/CI 用）。</summary>
-    public bool OpenSettings { get; private set; }
-
     /// <summary>内存诊断：启动后每 10s 打印 GC/工作集/模块统计，60s 后自动退出（NFR-2 监测用）。</summary>
     public bool MemInfo { get; private set; }
 
@@ -38,9 +35,6 @@ public sealed class CliOptions
                     break;
                 case "--smoke-test":
                     o.SmokeTest = true;
-                    break;
-                case "--settings":
-                    o.OpenSettings = true;
                     break;
                 case "--mem-info":
                     o.MemInfo = true;

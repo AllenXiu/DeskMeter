@@ -70,7 +70,6 @@ internal static class Program
         // 系统托盘（P2）：配置▶ / 设置… / 编辑配置… / 刷新 / 开机自启 / 退出
         using var tray = new TrayIcon(window, configPath, configManager);
 
-        if (options.OpenSettings) SettingsLauncher.Open(configPath, configManager);
 
         app.Run(window);
         return 0;

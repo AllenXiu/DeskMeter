@@ -244,7 +244,7 @@ Linux 专属对象（`acpi*`、`apm*`、`apcupsd*`、`battery`、`hddtemp`、`pl
 | 温度监控 | LibreHardwareMonitor 集成，兼容 `${platform coretemp.0 temp 1}` / `${hddtemp /dev/sda}` 语法（映射到 Windows 传感器） | P2 |
 | Top 进程 | `${top name 1}` `${top cpu 1}` `${top_mem name 1}` `${top_mem mem 1}`（Conky 标准语法） | P2 |
 | 音乐控制 | `${mpc title}` / `${mpc artist}`（MPD）；Spotify 等可用 `${exec playerctl ...}` | P2 |
-| 托盘图标 | 常驻托盘，右键菜单（配置▶ 多配置切换/导入、设置…、退出） | P2 |
+| 托盘图标 | 常驻托盘，右键菜单（配置▶ 多配置管理/编辑、开机自启、关于、退出；设置界面已移除，常规项由配置文件驱动） | P2 |
 | 开机自启 | 注册启动项 | P2 |
 | 多配置管理 | 导入多个 conky.conf、命名、切换当前配置（替代原"主题"方案，用户决策取消主题） | P2 |
 | Linux | 同配置格式，/proc + lm-sensors 数据源 | Future |

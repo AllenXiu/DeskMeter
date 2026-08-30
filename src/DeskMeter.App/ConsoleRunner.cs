@@ -21,6 +21,7 @@ public static class ConsoleRunner
             var nodes = ConkyTextParser.Parse(config.Text, registry, config.Settings);
 
             using var collector = new SystemDataCollector();
+            (collector.CollectDiskMetrics, collector.CollectGpuMetrics, collector.CollectNetMetrics) = config.Settings.GetTopMetricsNeeded();
             var data = collector.Collect();
 
             var layout = new WidgetLayout();
