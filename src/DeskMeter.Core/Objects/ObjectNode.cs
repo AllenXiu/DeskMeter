@@ -25,6 +25,9 @@ public sealed class RenderContext
 
     /// <summary>当前行内字体（${font ...} 设置；null = 配置默认字体，换行不重置——与 Conky 行为一致）。</summary>
     public FontSpec? CurrentFont { get; set; }
+
+    /// <summary>当前刷新序号（if_updatenr 用；由宿主每次刷新递增）。</summary>
+    public int UpdateNumber { get; set; }
 }
 
 /// <summary>

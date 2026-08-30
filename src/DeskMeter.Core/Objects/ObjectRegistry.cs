@@ -60,7 +60,7 @@ public sealed class ObjectRegistry
             "swap", "swapmax", "swapperc", "fs_used", "fs_free", "fs_size", "fs_free_perc",
             "fs_used_perc", "fs_type", "downspeed", "upspeed", "downspeedf", "upspeedf",
             "totaldown", "totalup", "processes", "running_processes", "freq", "freq_g",
-            "top", "top_mem",
+            "top", "top_mem", "addr", "addrs", "gw_ip", "gw_iface", "iface", "nameserver", "loadavg",
             "acpi", "acpitemp", "apm_adapter", "apm_battery", "apcupsd", "battery", "battery_time",
             "battery_percent", "battery_short", "hddtemp", "platform", "i2c", "smapi",
             "mpd_artist", "mpd_title", "mpd_album", "mpd_vol", "mpd_random", "mpc",

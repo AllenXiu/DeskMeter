@@ -75,6 +75,19 @@ public static class VariableEvaluator
             case "processes": return data.ProcessCount.ToString();
             case "running_processes": return data.RunningProcessCount.ToString();
 
+            // 网络信息（Windows 替代 Conky addr/gw/iface/nameserver）
+            case "addr": return data.InterfaceIps.FirstOrDefault();
+            case "addrs": return data.InterfaceIps.Count == 0 ? null : string.Join(" ", data.InterfaceIps);
+            case "gw_ip": return data.GatewayIps.FirstOrDefault();
+            case "gw_iface": return data.DefaultInterfaceName.Length == 0 ? null : data.DefaultInterfaceName;
+            case "iface": return data.DefaultInterfaceName.Length == 0 ? null : data.DefaultInterfaceName;
+            case "nameserver": return data.DnsServers.Count == 0 ? null : string.Join(" ", data.DnsServers);
+
+            // loadavg：1/5/15 分钟 CPU 占用均值（Windows 用 CPU 历史近似）
+            case "loadavg":
+                return string.Join(" ", new[] { data.LoadAvg1, data.LoadAvg5, data.LoadAvg15 }
+                    .Select(v => v.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)));
+
             case "freq":
             {
                 var mhz = data.CpuFrequencyMhz;

@@ -471,3 +471,149 @@ public sealed class VariableNode : ObjectNode
         ctx.Layout.AppendText(value ?? Placeholder, ctx.CurrentBrush, ctx.CurrentFont);
     }
 }
+
+/// <summary>
+/// 条件块节点（${if_xxx ...}...${else}...${endif}）：运行时求值条件，选择 then/else 子树输出。
+/// 支持 if_existing / if_mounted / if_match / if_running / if_up / if_empty / if_updatenr / if_gw。
+/// </summary>
+public sealed class ConditionalNode : ObjectNode
+{
+    private readonly string _kind;
+    private readonly string[] _rawArgs;
+    private readonly List<ObjectNode> _thenNodes;
+    private readonly List<ObjectNode> _elseNodes;
+    private readonly ObjectRegistry _registry;
+    private readonly ConfigSettings _settings;
+
+    public ConditionalNode(string kind, string[] rawArgs, List<ObjectNode> thenNodes, List<ObjectNode> elseNodes,
+        ObjectRegistry registry, ConfigSettings settings)
+    {
+        _kind = kind.ToLowerInvariant();
+        _rawArgs = rawArgs;
+        _thenNodes = thenNodes;
+        _elseNodes = elseNodes;
+        _registry = registry;
+        _settings = settings;
+    }
+
+    public override void Print(RenderContext ctx)
+    {
+        var hit = Evaluate(ctx);
+        var nodes = hit ? _thenNodes : _elseNodes;
+        foreach (var node in nodes) node.Print(ctx);
+    }
+
+    private bool Evaluate(RenderContext ctx)
+    {
+        try
+        {
+            var a = _rawArgs.Select(x => Expand(ctx, x)).ToArray();
+            switch (_kind)
+            {
+                case "if_existing":
+                    return a.Length > 0 && (System.IO.File.Exists(a[0]) || System.IO.Directory.Exists(a[0]));
+                case "if_mounted":
+                {
+                    if (a.Length == 0) return false;
+                    var root = SystemSnapshot.NormalizeDiskPath(a[0]);
+                    try { return System.IO.DriveInfo.GetDrives().Any(d => d.IsReady && string.Equals(d.RootDirectory.FullName, root, StringComparison.OrdinalIgnoreCase)); }
+                    catch { return false; }
+                }
+                case "if_match":
+                    return Match(string.Join(" ", a));
+                case "if_running":
+                {
+                    if (a.Length == 0) return false;
+                    var name = a[0];
+                    if (name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) name = name[..^4];
+                    try
+                    {
+                        var procs = System.Diagnostics.Process.GetProcessesByName(name);
+                        try { return procs.Length > 0; }
+                        finally { foreach (var proc in procs) proc.Dispose(); }
+                    }
+                    catch { return false; }
+                }
+                case "if_up":
+                {
+                    var want = a.Length > 0 ? a[0] : string.Empty;
+                    try
+                    {
+                        foreach (var ni in System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces())
+                        {
+                            if (ni.NetworkInterfaceType == System.Net.NetworkInformation.NetworkInterfaceType.Loopback) continue;
+                            if (ni.OperationalStatus != System.Net.NetworkInformation.OperationalStatus.Up) continue;
+                            if (want.Length == 0 || string.Equals(ni.Name, want, StringComparison.OrdinalIgnoreCase)) return true;
+                        }
+                        return false;
+                    }
+                    catch { return false; }
+                }
+                case "if_empty":
+                    return a.Length == 0 || string.IsNullOrEmpty(a[0]);
+                case "if_updatenr":
+                    return int.TryParse(a.Length > 0 ? a[0] : string.Empty, out var n) && ctx.UpdateNumber == n;
+                case "if_gw":
+                    if (a.Length == 0) return false;
+                    return ctx.Data.GatewayIps.Any(g => string.Equals(g, a[0], StringComparison.OrdinalIgnoreCase));
+                default:
+                    return false;
+            }
+        }
+        catch
+        {
+            return false; // 条件求值失败按 false 处理（FR-VAR-2 容错）
+        }
+    }
+
+    /// <summary>展开参数中的嵌套变量为纯文本（如 ${if_match ${cpu} > 50}）。</summary>
+    private string Expand(RenderContext ctx, string arg)
+    {
+        if (!arg.Contains("${", StringComparison.Ordinal)) return arg;
+        var temp = new WidgetLayout();
+        var tempCtx = new RenderContext(ctx.Data, ctx.Settings, temp)
+        {
+            CurrentBrush = ctx.CurrentBrush,
+            CurrentFont = ctx.CurrentFont,
+            UpdateNumber = ctx.UpdateNumber,
+        };
+        foreach (var node in ConkyTextParser.Parse(arg, _registry, _settings)) node.Print(tempCtx);
+        return string.Concat(temp.Lines.SelectMany(l => l.Elements.OfType<WidgetText>().Select(t => t.Text)));
+    }
+
+    /// <summary>if_match 表达式：支持 == != > < >= <=，数值优先，否则字符串比较。</summary>
+    private static bool Match(string expr)
+    {
+        var parts = expr.Split(new[] { "==", "!=", ">=", "<=", ">", "<" }, StringSplitOptions.None);
+        if (parts.Length != 2) return false;
+        var left = parts[0].Trim();
+        var right = parts[1].Trim();
+        var op = expr.Contains("==") ? "==" : expr.Contains("!=") ? "!=" :
+                 expr.Contains(">=") ? ">=" : expr.Contains("<=") ? "<=" :
+                 expr.Contains(">") ? ">" : expr.Contains("<") ? "<" : string.Empty;
+        if (op.Length == 0) return false;
+        if (double.TryParse(left, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var ln) &&
+            double.TryParse(right, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var rn))
+        {
+            return op switch
+            {
+                "==" => Math.Abs(ln - rn) < 1e-9,
+                "!=" => Math.Abs(ln - rn) >= 1e-9,
+                ">" => ln > rn,
+                "<" => ln < rn,
+                ">=" => ln >= rn,
+                _ => ln <= rn,
+            };
+        }
+        var cmp = string.CompareOrdinal(left, right);
+        return op switch
+        {
+            "==" => cmp == 0,
+            "!=" => cmp != 0,
+            ">" => cmp > 0,
+            "<" => cmp < 0,
+            ">=" => cmp >= 0,
+            _ => cmp <= 0,
+        };
+    }
+}

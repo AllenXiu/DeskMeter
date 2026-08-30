@@ -68,6 +68,17 @@ public sealed class SystemSnapshot
     /// <summary>每核 CPU 占用 %（\${cpu N} 用；采集失败为空）。</summary>
     public IReadOnlyList<double> CpuCoresPercent { get; init; } = Array.Empty<double>();
 
+    // ---- 网络信息（addr/gw/iface/nameserver/if_gw 等，采集器缓存填充）----
+    public IReadOnlyList<string> InterfaceIps { get; init; } = Array.Empty<string>();
+    public IReadOnlyList<string> GatewayIps { get; init; } = Array.Empty<string>();
+    public IReadOnlyList<string> DnsServers { get; init; } = Array.Empty<string>();
+    public string DefaultInterfaceName { get; init; } = string.Empty;
+
+    // ---- 平均负载（loadavg：1/5/15 分钟 CPU 占用均值，采集器维护历史）----
+    public double LoadAvg1 { get; init; }
+    public double LoadAvg5 { get; init; }
+    public double LoadAvg15 { get; init; }
+
     /// <summary>CPU 温度传感器（摄氏，\${platform coretemp.0 temp N} 用）。</summary>
     public IReadOnlyList<double> CpuTemps { get; private set; } = Array.Empty<double>();
 

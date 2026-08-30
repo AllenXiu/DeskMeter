@@ -25,6 +25,7 @@ public sealed class WidgetWindow : Window
     private FileSystemWatcher? _watcher;
 
     private ConfigSettings _settings;
+    private int _updateCount; // if_updatenr：刷新序号
     private List<ObjectNode> _nodes = new();
     private WidgetVisual _visual = null!;
 
@@ -156,7 +157,7 @@ public sealed class WidgetWindow : Window
         {
             var data = _collector.Collect();
             var layout = new WidgetLayout();
-            var ctx = new RenderContext(data, _settings, layout);
+            var ctx = new RenderContext(data, _settings, layout) { UpdateNumber = ++_updateCount };
             foreach (var node in _nodes) node.Print(ctx);
 
             _visual.Update(layout, RenderOptions.FromSettings(_settings));

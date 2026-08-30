@@ -4,7 +4,8 @@ namespace DeskMeter.Core.Objects;
 
 /// <summary>
 /// TEXT 段解析器：把 conky.text 解析为 Object Tree（节点列表）。
-/// 支持 $name / 括号参数形式 / $$ 转义 / \n 换行（FR-CFG-2）。
+/// 支持 $name / 括号参数形式 / $$ 转义 / \n 换行；括号内嵌套变量（如 ${if_match ${cpu} > 50}）
+/// 以及 if_* 条件块（${if_...}...${else}...${endif}，可嵌套）——FR-CFG-2 / FR-LATER.if。
 /// </summary>
 public static class ConkyTextParser
 {
@@ -35,8 +36,33 @@ public static class ConkyTextParser
 
             if (c == '$')
             {
+                // ${...} 括号形式（含 if_* 块与嵌套）
+                if (i + 1 < text.Length && text[i + 1] == '{')
+                {
+                    var token = TryReadBraceToken(text, i);
+                    if (token is not null)
+                    {
+                        if (IsConditionName(token.Value.Name))
+                        {
+                            Flush();
+                            i = ParseConditional(text, i, token.Value, nodes, registry, settings);
+                            continue;
+                        }
+                        if (token.Value.Name.Equals("else", StringComparison.OrdinalIgnoreCase) ||
+                            token.Value.Name.Equals("endif", StringComparison.OrdinalIgnoreCase))
+                        {
+                            // 游离的 else/endif：无对应 if，忽略（不产生内容）
+                            i = token.Value.End;
+                            continue;
+                        }
+                        Flush();
+                        nodes.Add(registry.Create(token.Value.Name, token.Value.Args, settings));
+                        i = token.Value.End;
+                        continue;
+                    }
+                }
                 Flush();
-                i = ParseVariable(text, i, nodes, registry, settings);
+                i = ParseDollarName(text, i, nodes, registry, settings);
                 continue;
             }
 
@@ -45,7 +71,7 @@ public static class ConkyTextParser
                 var next = text[i + 1];
                 if (next == 'n') { Flush(); nodes.Add(new NewlineNode()); i += 2; continue; }
                 if (next == '\\') { literal.Append('\\'); i += 2; continue; }
-                if (next == 't') { literal.Append('	'); i += 2; continue; }
+                if (next == 't') { literal.Append('\t'); i += 2; continue; }
                 literal.Append('\\');
                 i += 1;
                 continue;
@@ -59,28 +85,99 @@ public static class ConkyTextParser
         return nodes;
     }
 
-    private static int ParseVariable(string text, int start, List<ObjectNode> nodes,
-        ObjectRegistry registry, ConfigSettings settings)
+    /// <summary>${name args} 词法单元（花括号深度感知，支持嵌套变量）。</summary>
+    private static (int End, string Name, string[] Args)? TryReadBraceToken(string text, int start)
     {
-        // start 指向 '$'
-        var i = start + 1;
-        if (i < text.Length && text[i] == '{')
+        // start 指向 '$'，其后应为 '{'
+        var i = start + 2;
+        var depth = 1;
+        var tokenStart = i;
+        while (i < text.Length)
         {
-            var end = text.IndexOf('}', i + 1);
-            if (end < 0)
+            var c = text[i];
+            if (c == '{' && i > 0 && text[i - 1] == '$') depth++;
+            else if (c == '}')
             {
-                nodes.Add(new TextNode("$" + "{"));
-                return i + 1;
+                depth--;
+                if (depth == 0) break;
             }
-            var inner = text[(i + 1)..end];
-            var parts = inner.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-            var name = parts.Length > 0 ? parts[0] : string.Empty;
-            var args = parts.Length > 1 ? parts[1..] : Array.Empty<string>();
-            nodes.Add(registry.Create(name, args, settings));
-            return end + 1;
+            i++;
+        }
+        if (i >= text.Length || depth != 0) return null; // 未闭合：按字面处理
+        var inner = text[tokenStart..i];
+        var parts = inner.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var name = parts.Length > 0 ? parts[0] : string.Empty;
+        var args = parts.Length > 1 ? parts[1..] : Array.Empty<string>();
+        return (i + 1, name, args);
+    }
+
+    private static bool IsConditionName(string name) =>
+        name.StartsWith("if_", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// 解析 ${if_xxx ...} 条件块：扫描到配对的 ${endif}（支持嵌套与 ${else}），
+    /// 主体文本递归解析后交给 ConditionalNode 在运行时按条件求值。
+    /// </summary>
+    private static int ParseConditional(string text, int start, (int End, string Name, string[] Args) token,
+        List<ObjectNode> nodes, ObjectRegistry registry, ConfigSettings settings)
+    {
+        var then = new System.Text.StringBuilder();
+        var els = new System.Text.StringBuilder();
+        var active = then;
+        var depth = 0;
+        var i = token.End;
+
+        while (i < text.Length)
+        {
+            var c = text[i];
+            if (c == '$' && i + 1 < text.Length && text[i + 1] == '$') { active.Append("$$"); i += 2; continue; }
+            if (c == '$' && i + 1 < text.Length && text[i + 1] == '{')
+            {
+                var t = TryReadBraceToken(text, i);
+                if (t is not null)
+                {
+                    var n = t.Value.Name;
+                    if (IsConditionName(n))
+                    {
+                        depth++;
+                        active.Append(text[i..t.Value.End]);
+                        i = t.Value.End;
+                        continue;
+                    }
+                    if (n.Equals("endif", StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (depth > 0) { depth--; active.Append(text[i..t.Value.End]); i = t.Value.End; continue; }
+                        // 本层 endif：结束
+                        i = t.Value.End;
+                        break;
+                    }
+                    if (n.Equals("else", StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (depth == 0) { active = els; i = t.Value.End; continue; }
+                        active.Append(text[i..t.Value.End]);
+                        i = t.Value.End;
+                        continue;
+                    }
+                    active.Append(text[i..t.Value.End]);
+                    i = t.Value.End;
+                    continue;
+                }
+            }
+            active.Append(c);
+            i++;
         }
 
-        // $name（字母/数字/下划线）
+        var thenNodes = Parse(then.ToString(), registry, settings);
+        var elseNodes = Parse(els.ToString(), registry, settings);
+        nodes.Add(new ConditionalNode(token.Name, token.Args, thenNodes, elseNodes, registry, settings));
+        return i;
+    }
+
+    /// <summary>$name（字母/数字/下划线）。</summary>
+    private static int ParseDollarName(string text, int start, List<ObjectNode> nodes,
+        ObjectRegistry registry, ConfigSettings settings)
+    {
+        var i = start + 1;
         var j = i;
         while (j < text.Length && (char.IsLetterOrDigit(text[j]) || text[j] == '_')) j++;
         if (j == i)

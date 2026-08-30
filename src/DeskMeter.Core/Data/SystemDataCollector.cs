@@ -21,6 +21,12 @@ public sealed class SystemDataCollector : IDisposable
     private int _netRescanCounter;
     private IReadOnlyList<string>? _driveRoots; // 磁盘根缓存：60 tick 重扫一次
     private int _driveRescanCounter;
+    private IReadOnlyList<string> _ifaceIps = Array.Empty<string>();
+    private IReadOnlyList<string> _gatewayIps = Array.Empty<string>();
+    private IReadOnlyList<string> _dnsServers = Array.Empty<string>();
+    private string _defaultIface = string.Empty;
+    private int _netInfoRescan;
+    private readonly List<double> _cpuHistory = new(); // loadavg：最近 900 秒 CPU 占用历史
     private string? _freqCache;
     private string? _osNameCache;
     private string? _kernelCache;
@@ -42,6 +48,9 @@ public sealed class SystemDataCollector : IDisposable
     {
         var now = DateTime.Now;
         var cpu = GetCpuPercent();
+        _cpuHistory.Add(cpu);
+        if (_cpuHistory.Count > 900) _cpuHistory.RemoveAt(0);
+        EnsureNetworkInfo();
         var (recv, sent) = GetNetTotals();
         var speed = GetNetSpeed(recv, sent, now);
         var (memUsed, memTotal, swapUsed, swapTotal) = GetMemory();
@@ -72,6 +81,13 @@ public sealed class SystemDataCollector : IDisposable
             TopCpu = topCpu,
             TopMem = topMem,
             CpuCoresPercent = GetCpuCores(),
+            InterfaceIps = _ifaceIps,
+            GatewayIps = _gatewayIps,
+            DnsServers = _dnsServers,
+            DefaultInterfaceName = _defaultIface,
+            LoadAvg1 = AverageHistory(60),
+            LoadAvg5 = AverageHistory(300),
+            LoadAvg15 = AverageHistory(900),
         };
 
         if (_temperature is not null)
@@ -203,6 +219,59 @@ public sealed class SystemDataCollector : IDisposable
         var path = root is "/" or "\\" ? Path.GetPathRoot(Environment.SystemDirectory) ?? root : root;
         if (!GetDiskFreeSpaceEx(path, out var freeAvail, out var total, out _)) return null;
         return new DiskInfo { Total = total, Free = freeAvail, Used = total - freeAvail };
+    }
+
+    // ---- 网络信息（IP/网关/DNS/默认网卡；60 tick 缓存）----
+
+    private void EnsureNetworkInfo()
+    {
+        if (++_netInfoRescan < 60 && _ifaceIps.Count > 0) return;
+        _netInfoRescan = 0;
+        var ips = new List<string>();
+        var gateways = new List<string>();
+        var dns = new List<string>();
+        string defaultIface = string.Empty;
+        try
+        {
+            foreach (var ni in NetworkInterface.GetAllNetworkInterfaces())
+            {
+                if (ni.NetworkInterfaceType == NetworkInterfaceType.Loopback) continue;
+                var props = ni.GetIPProperties();
+                foreach (var ua in props.UnicastAddresses)
+                {
+                    if (ua.Address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
+                    {
+                        ips.Add(ua.Address.ToString());
+                        if (ni.OperationalStatus == OperationalStatus.Up && defaultIface.Length == 0)
+                            defaultIface = ni.Name;
+                    }
+                }
+                foreach (var ga in props.GatewayAddresses)
+                {
+                    if (ga.Address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
+                        gateways.Add(ga.Address.ToString());
+                }
+                foreach (var da in props.DnsAddresses)
+                {
+                    if (da.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
+                        dns.Add(da.ToString());
+                }
+            }
+        }
+        catch { /* 容错 */ }
+        _ifaceIps = ips;
+        _gatewayIps = gateways;
+        _dnsServers = dns;
+        _defaultIface = defaultIface;
+    }
+
+    private double AverageHistory(int seconds)
+    {
+        var count = Math.Min(seconds, _cpuHistory.Count);
+        if (count == 0) return 0;
+        var sum = 0.0;
+        for (var i = _cpuHistory.Count - count; i < _cpuHistory.Count; i++) sum += _cpuHistory[i];
+        return Math.Round(sum / count, 2);
     }
 
     // ---- 网络 ----
