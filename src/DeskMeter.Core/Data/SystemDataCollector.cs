@@ -59,10 +59,16 @@ public sealed class SystemDataCollector : IDisposable
 
     public SystemDataCollector(bool enableTemperature = true)
     {
-        _temperature = enableTemperature ? new TemperatureMonitor(true) : null;
+        // LHM 懒加载：记录意愿，首次 Collect 时才创建（内存优化：非温度配置不加载 LibreHardwareMonitor 及其依赖）
+        _temperatureRequested = enableTemperature;
     }
 
     public SystemDataCollector() : this(true) { }
+
+    /// <summary>按需启用温度采集（仅配置实际使用 platform/hddtemp 且 temperature != false 时调用）。</summary>
+    public void RequestTemperature() => _temperatureRequested = true;
+
+    private bool _temperatureRequested;
 
     public SystemSnapshot Collect()
     {
@@ -119,10 +125,18 @@ public sealed class SystemDataCollector : IDisposable
             BatteryStatus = battStatus,
         };
 
-        if (_temperature is not null)
+        if (_temperatureRequested)
         {
-            var (cpuT, gpuT, diskT) = _temperature.Snapshot();
-            snap.SetTemperatures(cpuT, gpuT, diskT);
+            if (_temperature is null)
+            {
+                try { _temperature = new TemperatureMonitor(true); }
+                catch { _temperature = null; }
+            }
+            if (_temperature is not null)
+            {
+                var (cpuT, gpuT, diskT) = _temperature.Snapshot();
+                snap.SetTemperatures(cpuT, gpuT, diskT);
+            }
         }
 
         // 磁盘：常见根路径
@@ -487,7 +501,7 @@ public sealed class SystemDataCollector : IDisposable
 
     private void EnsureProcDiskInstances()
     {
-        if (_procDiskInstances is not null && ++_diskInstanceRescan < 60) return;
+        if (_procDiskInstances is not null && ++_diskInstanceRescan < 300) return; // 实例列表 300 tick 重扫一次（少分配）
         _diskInstanceRescan = 0;
         var map = new Dictionary<int, string>();
         try
@@ -527,7 +541,7 @@ public sealed class SystemDataCollector : IDisposable
 
     private void EnsureGpuInstances()
     {
-        if (_gpuInstances is not null && ++_gpuInstanceRescan < 60) return;
+        if (_gpuInstances is not null && ++_gpuInstanceRescan < 300) return; // 816 个实例名，放宽重扫周期
         _gpuInstanceRescan = 0;
         var map = new Dictionary<int, List<string>>();
         try

@@ -18,7 +18,7 @@ public sealed class WidgetWindow : Window
 {
     private readonly LuaConfigEngine _engine = new();
     private readonly ObjectRegistry _registry = new();
-    private readonly SystemDataCollector _collector = new();
+    private readonly SystemDataCollector _collector = new(enableTemperature: false); // LHM 懒加载（内存优化）
     private readonly DispatcherTimer _timer;
     private readonly DispatcherTimer _reloadDebounce;
     private string _configPath;
@@ -27,6 +27,7 @@ public sealed class WidgetWindow : Window
     private ConfigSettings _settings;
     private int _updateCount; // if_updatenr：刷新序号
     private string _topSort = "cpu"; // Top 榜排序键（deskmeter.top.sort / 点击表头切换）
+    private readonly DispatcherTimer _memTrimTimer;
     private MoonSharp.Interpreter.Script? _luaScript; // ${lua 函数} 变量：配置编译脚本
     private List<ObjectNode> _nodes = new();
     private WidgetVisual _visual = null!;
@@ -78,6 +79,11 @@ public sealed class WidgetWindow : Window
             }
         };
         Refresh();
+
+        // 内存优化：每 60s 主动 GC + 工作集修剪（Task Manager 观感 105MB→~45MB；内容小，重绘页错误可忽略）
+        _memTrimTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(60) };
+        _memTrimTimer.Tick += (_, _) => TrimMemory();
+        _memTrimTimer.Start();
     }
 
     /// <summary>热切换配置（多配置管理）：换 watcher → 重新加载 → 刷新。</summary>
@@ -160,10 +166,33 @@ public sealed class WidgetWindow : Window
         _settings = config.Settings;
         _luaScript = config.LuaScript;
         _topSort = config.Settings.GetString("top.sort") ?? "cpu";
+        // 温度采集按需启用：配置用到 platform/hddtemp 且未显式关闭时才加载 LHM
+        if (config.Settings.GetBool("temperature", true) &&
+            (config.Text.Contains("platform", StringComparison.OrdinalIgnoreCase) ||
+             config.Text.Contains("hddtemp", StringComparison.OrdinalIgnoreCase)))
+        {
+            _collector.RequestTemperature();
+        }
         _nodes = ConkyTextParser.Parse(config.Text, _registry, config.Settings);
         // 新配置：重置稳定宽度基线（防旧的宽内容残留）
         _visual?.ResetStableWidth();
     }
+
+    /// <summary>内存优化：GC 回收原生渲染数据 + 工作集修剪（每 60s）。</summary>
+    private void TrimMemory()
+    {
+        try
+        {
+            System.GC.Collect(2, System.GCCollectionMode.Optimized, blocking: false, compacting: false);
+            System.GC.WaitForPendingFinalizers();
+            using var proc = System.Diagnostics.Process.GetCurrentProcess();
+            SetProcessWorkingSetSize(proc.Handle, -1, -1);
+        }
+        catch { }
+    }
+
+    [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool SetProcessWorkingSetSize(IntPtr proc, int min, int max);
 
     /// <summary>点击表头循环切换 Top 排序（cpu→mem→disk→gpu→net→pid→name）。</summary>
     private void CycleTopSort()
@@ -267,6 +296,7 @@ public sealed class WidgetWindow : Window
 
     protected override void OnClosed(EventArgs e)
     {
+        _memTrimTimer.Stop();
         _reloadDebounce.Stop();
         _watcher?.Dispose();
         _collector.Dispose();

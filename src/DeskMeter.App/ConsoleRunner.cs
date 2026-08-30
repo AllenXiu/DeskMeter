@@ -20,7 +20,10 @@ public static class ConsoleRunner
             var registry = new ObjectRegistry();
             var nodes = ConkyTextParser.Parse(config.Text, registry, config.Settings);
 
-            using var collector = new SystemDataCollector();
+            using var collector = new SystemDataCollector(enableTemperature: false);
+            if (config.Settings.GetBool("temperature", true) &&
+                (config.Text.Contains("platform", StringComparison.OrdinalIgnoreCase) || config.Text.Contains("hddtemp", StringComparison.OrdinalIgnoreCase)))
+                collector.RequestTemperature();
             (collector.CollectDiskMetrics, collector.CollectGpuMetrics, collector.CollectNetMetrics) = config.Settings.GetTopMetricsNeeded();
             var data = collector.Collect();
 
