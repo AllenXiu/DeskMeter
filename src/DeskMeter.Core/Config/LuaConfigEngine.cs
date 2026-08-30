@@ -78,7 +78,15 @@ public sealed class LuaConfigEngine
             {
                 var key = pair.Key.CastToString();
                 if (string.IsNullOrEmpty(key)) continue;
-                values[key] = Coerce(pair.Value); // monitor / click_through / autostart 等
+                // 嵌套表（如 top = { sort=..., columns={...} }）扁平化为 "top.sort" / "top.columns"
+                if (pair.Value.Type == DataType.Table && !IsStringList(pair.Value.Table))
+                {
+                    FlattenTable(pair.Value.Table, key, values);
+                }
+                else
+                {
+                    values[key] = Coerce(pair.Value); // monitor / click_through / autostart 等
+                }
             }
         }
         return new ConfigSettings("", values);
@@ -89,6 +97,46 @@ public sealed class LuaConfigEngine
         if (text.IsNil()) return string.Empty;
         var s = text.CastToString();
         return s ?? string.Empty;
+    }
+
+    private static bool IsStringList(Table table)
+    {
+        foreach (var pair in table.Pairs)
+        {
+            if (pair.Value.CastToString() is null) return false;
+        }
+        return true;
+    }
+
+    private static void FlattenTable(Table table, string prefix, Dictionary<string, object?> values)
+    {
+        foreach (var pair in table.Pairs)
+        {
+            var key = pair.Key.CastToString();
+            if (string.IsNullOrEmpty(key)) continue;
+            var flatKey = prefix + "." + key;
+            if (pair.Value.Type == DataType.Table)
+            {
+                if (IsStringList(pair.Value.Table))
+                {
+                    var list = new List<string>();
+                    foreach (var item in pair.Value.Table.Pairs)
+                    {
+                        var str = item.Value.CastToString();
+                        if (str is not null) list.Add(str);
+                    }
+                    values[flatKey] = list;
+                }
+                else
+                {
+                    FlattenTable(pair.Value.Table, flatKey, values);
+                }
+            }
+            else
+            {
+                values[flatKey] = Coerce(pair.Value);
+            }
+        }
     }
 
     private static object? Coerce(DynValue value)

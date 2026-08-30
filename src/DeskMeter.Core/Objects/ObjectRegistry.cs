@@ -64,6 +64,9 @@ public sealed class ObjectRegistry
         // lua 变量：调用配置内定义的函数
         Register("lua", (args, settings) => new LuaNode(args, this, settings));
 
+        // top 表头（点击切换排序用）
+        Register("top_header", (_, settings) => new TopHeaderNode(settings));
+
         // 曲线图（矢量 Graph，Conky 语义：高度[,宽度]，环形缓冲 80 点）
         Register("cpugraph", (args, s) => new GraphNode(d => d.CpuPercent, args, s));
         Register("diskiograph", (args, s) => new GraphNode(d => d.DiskReadBytesPerSec + d.DiskWriteBytesPerSec, args, s));

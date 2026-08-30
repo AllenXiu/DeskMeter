@@ -29,6 +29,19 @@ public sealed class SystemDataCollector : IDisposable
     private readonly List<double> _cpuHistory = new(); // loadavg：最近 900 秒 CPU 占用历史
     private PerformanceCounter? _diskReadCounter;
     private PerformanceCounter? _diskWriteCounter;
+
+    // ---- 任务管理器式 Top 扩展指标（磁盘 IO / GPU / 连接数，按需缓存采样）----
+    public string TopSort { get; set; } = "cpu"; // cpu|mem|pid|name|disk|gpu|net
+    private Dictionary<int, string>? _procDiskInstances;
+    private int _diskInstanceRescan;
+    private readonly Dictionary<string, PerformanceCounter> _ioReadCounters = new();
+    private readonly Dictionary<string, PerformanceCounter> _ioWriteCounters = new();
+    private Dictionary<int, List<string>>? _gpuInstances;
+    private int _gpuInstanceRescan;
+    private readonly Dictionary<string, PerformanceCounter> _gpuCounters = new();
+    private Dictionary<int, int>? _conns;
+    private int _connTick;
+    private const int ConnSampleEvery = 3;
     private string? _freqCache;
     private string? _osNameCache;
     private string? _kernelCache;
@@ -59,6 +72,7 @@ public sealed class SystemDataCollector : IDisposable
         // 进程数据每 tick 只枚举一次（计数 + 运行数 + top 榜共用），并全部 Dispose 防止句柄/内存泄漏
         var procSnap = CollectProcesses(DateTime.UtcNow, memTotal);
         var (topCpu, topMem) = GetTopProcesses(procSnap.Items, 10);
+        var topActive = BuildTopActive(procSnap.Items);
         var (diskRead, diskWrite) = GetDiskIo();
         var (battPercent, battSeconds, battStatus) = GetBattery();
 
@@ -84,6 +98,7 @@ public sealed class SystemDataCollector : IDisposable
             Machine = Environment.Is64BitOperatingSystem ? "x86_64" : "x86",
             TopCpu = topCpu,
             TopMem = topMem,
+            TopActive = topActive,
             CpuCoresPercent = GetCpuCores(),
             InterfaceIps = _ifaceIps,
             GatewayIps = _gatewayIps,
@@ -126,6 +141,10 @@ public sealed class SystemDataCollector : IDisposable
         _coreCounters.Clear();
         try { _diskReadCounter?.Dispose(); } catch { }
         try { _diskWriteCounter?.Dispose(); } catch { }
+        foreach (var pc in _ioReadCounters.Values.Concat(_ioWriteCounters.Values).Concat(_gpuCounters.Values))
+        {
+            try { pc.Dispose(); } catch { }
+        }
     }
 
     // ---- CPU ----
@@ -422,6 +441,184 @@ public sealed class SystemDataCollector : IDisposable
             items.OrderByDescending(x => x.CpuPercent).Take(count).ToList(),
             items.OrderByDescending(x => x.MemPercent).Take(count).ToList());
     }
+    /// <summary>按 deskmeter.top.sort 构建当前 Top 榜（${top ...} 用）；扩展指标只对候选进程采样控制开销。</summary>
+    private IReadOnlyList<ProcessInfo> BuildTopActive(IReadOnlyList<ProcessInfo> items)
+    {
+        if (items.Count == 0) return Array.Empty<ProcessInfo>();
+
+        // 候选 = CPU 前 20 ∪ 内存前 20（磁盘/GPU/连接数只对这些进程采集）
+        var candidates = items.OrderByDescending(x => x.CpuPercent).Take(20)
+            .Concat(items.OrderByDescending(x => x.MemPercent).Take(20))
+            .Select(x => x.Pid).Distinct().ToHashSet();
+        EnsureProcDiskInstances();
+        EnsureGpuInstances();
+        EnsureConnections();
+        foreach (var item in items)
+        {
+            if (!candidates.Contains(item.Pid)) continue;
+            item.DiskReadBytesPerSec = DiskIoFor(item.Pid, read: true);
+            item.DiskWriteBytesPerSec = DiskIoFor(item.Pid, read: false);
+            item.GpuPercent = GpuFor(item.Pid);
+            item.NetConnections = _conns is not null && _conns.TryGetValue(item.Pid, out var c) ? c : 0;
+        }
+
+        IOrderedEnumerable<ProcessInfo> ordered = TopSort.ToLowerInvariant() switch
+        {
+            "mem" => items.OrderByDescending(x => x.MemPercent),
+            "pid" => items.OrderBy(x => x.Pid),
+            "name" => items.OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase),
+            "disk" => items.OrderByDescending(x => x.DiskReadBytesPerSec + x.DiskWriteBytesPerSec),
+            "gpu" => items.OrderByDescending(x => x.GpuPercent),
+            "net" => items.OrderByDescending(x => x.NetConnections),
+            _ => items.OrderByDescending(x => x.CpuPercent),
+        };
+        return ordered.Take(10).ToList();
+    }
+
+    // ---- 每进程磁盘 IO（PerfMon Process\IO Read/Write Bytes/sec）----
+
+    private void EnsureProcDiskInstances()
+    {
+        if (_procDiskInstances is not null && ++_diskInstanceRescan < 60) return;
+        _diskInstanceRescan = 0;
+        var map = new Dictionary<int, string>();
+        try
+        {
+            foreach (var name in new PerformanceCounterCategory("Process").GetInstanceNames())
+            {
+                var hash = name.LastIndexOf('#');
+                if (hash <= 0 || !int.TryParse(name[(hash + 1)..], out var pid)) continue;
+                map[pid] = name;
+            }
+        }
+        catch { }
+        _procDiskInstances = map;
+    }
+
+    private double DiskIoFor(int pid, bool read)
+    {
+        try
+        {
+            if (_procDiskInstances is null || !_procDiskInstances.TryGetValue(pid, out var inst)) return 0;
+            var cache = read ? _ioReadCounters : _ioWriteCounters;
+            if (!cache.TryGetValue(inst, out var pc))
+            {
+                pc = new PerformanceCounter("Process", read ? "IO Read Bytes/sec" : "IO Write Bytes/sec", inst);
+                cache[inst] = pc;
+                pc.NextValue(); // 首采样基线
+            }
+            return Math.Max(0, pc.NextValue());
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    // ---- 每进程 GPU（PerfMon GPU Engine\Utilization Percentage，多引擎取最大）----
+
+    private void EnsureGpuInstances()
+    {
+        if (_gpuInstances is not null && ++_gpuInstanceRescan < 60) return;
+        _gpuInstanceRescan = 0;
+        var map = new Dictionary<int, List<string>>();
+        try
+        {
+            foreach (var name in new PerformanceCounterCategory("GPU Engine").GetInstanceNames())
+            {
+                if (!name.StartsWith("pid_", StringComparison.Ordinal)) continue;
+                var underscore = name.IndexOf('_', 4);
+                if (underscore <= 0 || !int.TryParse(name.AsSpan(4, underscore - 4), out var pid)) continue;
+                if (!map.TryGetValue(pid, out var list)) map[pid] = list = new List<string>();
+                list.Add(name);
+            }
+        }
+        catch { }
+        _gpuInstances = map;
+    }
+
+    private double GpuFor(int pid)
+    {
+        try
+        {
+            if (_gpuInstances is null || !_gpuInstances.TryGetValue(pid, out var list) || list.Count == 0) return 0;
+            double max = 0;
+            foreach (var inst in list)
+            {
+                if (!_gpuCounters.TryGetValue(inst, out var pc))
+                {
+                    pc = new PerformanceCounter("GPU Engine", "Utilization Percentage", inst);
+                    _gpuCounters[inst] = pc;
+                    pc.NextValue();
+                }
+                max = Math.Max(max, Math.Max(0, pc.NextValue()));
+            }
+            return max;
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    // ---- 每进程网络连接数（GetExtendedTcpTable/UdpTable，3 tick 采一次）----
+
+    private void EnsureConnections()
+    {
+        if (++_connTick % ConnSampleEvery != 0 && _conns is not null) return;
+        var map = new Dictionary<int, int>();
+        try
+        {
+            foreach (var pid in GetTcpOwnerPids()) map[pid] = map.TryGetValue(pid, out var c) ? c + 1 : 1;
+            foreach (var pid in GetUdpOwnerPids()) map[pid] = map.TryGetValue(pid, out var c) ? c + 1 : 1;
+        }
+        catch { }
+        _conns = map;
+    }
+
+    private static IEnumerable<int> GetTcpOwnerPids()
+    {
+        var size = 0;
+        if (GetExtendedTcpTable(IntPtr.Zero, ref size, false, 2, 5, 0) != 0 || size <= 0) yield break;
+        var buf = Marshal.AllocHGlobal(size);
+        try
+        {
+            if (GetExtendedTcpTable(buf, ref size, false, 2, 5, 0) != 0) yield break;
+            var count = Marshal.ReadInt32(buf);
+            for (var i = 0; i < count; i++)
+            {
+                var row = IntPtr.Add(buf, 4 + i * 24);
+                yield return Marshal.ReadInt32(row, 20); // dwOwningPid
+            }
+        }
+        finally { Marshal.FreeHGlobal(buf); }
+    }
+
+    private static IEnumerable<int> GetUdpOwnerPids()
+    {
+        var size = 0;
+        if (GetExtendedUdpTable(IntPtr.Zero, ref size, false, 2, 1, 0) != 0 || size <= 0) yield break;
+        var buf = Marshal.AllocHGlobal(size);
+        try
+        {
+            if (GetExtendedUdpTable(buf, ref size, false, 2, 1, 0) != 0) yield break;
+            var count = Marshal.ReadInt32(buf);
+            for (var i = 0; i < count; i++)
+            {
+                var row = IntPtr.Add(buf, 4 + i * 12);
+                yield return Marshal.ReadInt32(row, 8); // dwOwningPid
+            }
+        }
+        finally { Marshal.FreeHGlobal(buf); }
+    }
+
+    [DllImport("iphlpapi.dll", SetLastError = true)]
+    private static extern uint GetExtendedTcpTable(IntPtr pTcpTable, ref int dwOutBufLen, bool sort,
+        uint ipVersion, uint tblClass, uint reserved);
+
+    [DllImport("iphlpapi.dll", SetLastError = true)]
+    private static extern uint GetExtendedUdpTable(IntPtr pUdpTable, ref int dwOutBufLen, bool sort,
+        uint ipVersion, uint tblClass, uint reserved);
 
     // ---- 静态信息（带缓存，容错）----
 

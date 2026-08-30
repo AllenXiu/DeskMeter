@@ -52,11 +52,12 @@ public abstract class WidgetElement
 /// <summary>文本元素（可携带行内字体，null = 使用配置字体）。</summary>
 public sealed class WidgetText : WidgetElement
 {
-    public WidgetText(string text, WidgetBrush brush, FontSpec? font = null)
+    public WidgetText(string text, WidgetBrush brush, FontSpec? font = null, bool isTopHeader = false)
     {
         Text = text;
         Brush = brush;
         Font = font;
+        IsTopHeader = isTopHeader;
     }
 
     public string Text { get; }
@@ -64,6 +65,9 @@ public sealed class WidgetText : WidgetElement
 
     /// <summary>行内字体（${font ...} 设置）；null = 配置默认字体。</summary>
     public FontSpec? Font { get; }
+
+    /// <summary>Top 表头标记（${top_header} 输出；渲染层记录区域供点击切换排序）。</summary>
+    public bool IsTopHeader { get; }
 }
 
 /// <summary>
@@ -217,12 +221,12 @@ public sealed class WidgetLayout
         return line;
     }
 
-    public void AppendText(string text, WidgetBrush brush, FontSpec? font = null)
+    public void AppendText(string text, WidgetBrush brush, FontSpec? font = null, bool isTopHeader = false)
     {
         if (string.IsNullOrEmpty(text)) return;
         var line = CurrentLine;
         if (line.IsRule) line = NewLine();
-        line.Elements.Add(new WidgetText(text, brush, font));
+        line.Elements.Add(new WidgetText(text, brush, font, isTopHeader));
     }
 
     public void AppendBar(double percent, WidgetBrush brush, double height, double width)

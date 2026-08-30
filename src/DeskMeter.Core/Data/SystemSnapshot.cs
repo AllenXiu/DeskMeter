@@ -25,6 +25,12 @@ public sealed class ProcessInfo
 
     /// <summary>累计 CPU 时间（秒，\${top time N} 用）。</summary>
     public double CpuSeconds { get; }
+
+    // ---- 任务管理器式扩展指标（采集器按需填充；未采集为 0）----
+    public double DiskReadBytesPerSec { get; set; }
+    public double DiskWriteBytesPerSec { get; set; }
+    public double GpuPercent { get; set; }
+    public int NetConnections { get; set; }
 }
 
 /// <summary>一块磁盘的信息。</summary>
@@ -99,6 +105,9 @@ public sealed class SystemSnapshot
 
     /// <summary>内存占用榜（\${top_mem ...}，按 MemPercent 降序，前 10）。</summary>
     public IReadOnlyList<ProcessInfo> TopMem { get; init; } = Array.Empty<ProcessInfo>();
+
+    /// <summary>当前排序键（deskmeter.top.sort / 点击表头切换）对应的 Top 榜（\${top ...} 用）。</summary>
+    public IReadOnlyList<ProcessInfo> TopActive { get; init; } = Array.Empty<ProcessInfo>();
 
     public DateTime Now { get; init; } = DateTime.Now;
     public TimeSpan Uptime { get; init; }

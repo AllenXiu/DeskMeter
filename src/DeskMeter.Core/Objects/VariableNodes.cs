@@ -933,3 +933,38 @@ public sealed class LuaNode : ObjectNode
         return string.Concat(temp.Lines.SelectMany(l => l.Elements.OfType<WidgetText>().Select(t => t.Text)));
     }
 }
+/// <summary>
+/// ${top_header}：按 deskmeter.top.columns 输出 Top 表头行（含排序切换标记，渲染层记录区域）。
+/// 列：name/pid/cpu/mem/disk/disk_read/disk_write/gpu/net；默认 name,pid,cpu,mem。
+/// </summary>
+public sealed class TopHeaderNode : ObjectNode
+{
+    private readonly ConfigSettings _settings;
+
+    public TopHeaderNode(ConfigSettings settings) => _settings = settings;
+
+    public override void Print(RenderContext ctx)
+    {
+        var cols = _settings.GetStringList("top.columns");
+        if (cols.Count == 0) cols = new[] { "name", "pid", "cpu", "mem" };
+        var nameWidth = (int)_settings.GetNumber("top_name_width", 15) + 1;
+        var sb = new System.Text.StringBuilder();
+        foreach (var c in cols)
+        {
+            sb.Append(c.ToLowerInvariant() switch
+            {
+                "name" => "Name".PadRight(nameWidth),
+                "pid" => "PID".PadLeft(7),
+                "cpu" => "CPU%".PadLeft(6),
+                "mem" => "MEM%".PadLeft(6),
+                "disk" => "Disk".PadLeft(12),
+                "disk_read" => "R".PadLeft(12),
+                "disk_write" => "W".PadLeft(12),
+                "gpu" => "GPU%".PadLeft(6),
+                "net" => "Net".PadLeft(6),
+                _ => c,
+            });
+        }
+        ctx.Layout.AppendText(sb.ToString(), ctx.CurrentBrush, ctx.CurrentFont, isTopHeader: true);
+    }
+}

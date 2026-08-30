@@ -286,4 +286,73 @@ public class P2WindowsCompatTests
     {
         Assert.Null(VariableEvaluator.Evaluate("battery_percent", Array.Empty<string>(), TestHelpers.FakeSnapshot(), _settings));
     }
+
+    // ---- 任务管理器式 Top（P1+P2：sort/columns/扩展列/表头）----
+
+    [Fact]
+    public void TopHeader_DefaultColumns()
+    {
+        var layout = RenderLayout("${top_header}");
+        var text = Assert.IsType<WidgetText>(layout.Lines[0].Elements[0]);
+        Assert.True(text.IsTopHeader);
+        Assert.Equal("Name".PadRight(16) + "PID".PadLeft(7) + "CPU%".PadLeft(6) + "MEM%".PadLeft(6), text.Text);
+    }
+
+    [Fact]
+    public void TopHeader_ConfiguredColumns()
+    {
+        var settings = TestHelpers.Settings(new Dictionary<string, object?> { ["top.columns"] = new[] { "name", "pid", "disk", "gpu", "net" } });
+        var layout = new WidgetLayout();
+        var ctx = new RenderContext(TestHelpers.FakeSnapshot(), settings, layout);
+        foreach (var node in ConkyTextParser.Parse("${top_header}", _registry, settings)) node.Print(ctx);
+        var text = Assert.IsType<WidgetText>(layout.Lines[0].Elements[0]);
+        Assert.Equal("Name".PadRight(16) + "PID".PadLeft(7) + "Disk".PadLeft(12) + "GPU%".PadLeft(6) + "Net".PadLeft(6), text.Text);
+    }
+
+    [Fact]
+    public void Top_NewFields_DiskGpuNet()
+    {
+        var snap = new SystemSnapshot
+        {
+            TopActive = new[]
+            {
+                new ProcessInfo("game", 1, 10, 20)
+                {
+                    DiskReadBytesPerSec = 1024 * 1024,
+                    DiskWriteBytesPerSec = 512 * 1024,
+                    GpuPercent = 65.5,
+                    NetConnections = 42,
+                },
+            },
+        };
+        var settings = TestHelpers.Settings();
+        Assert.Contains("1.5MiB/s", VariableEvaluator.Evaluate("top", new[] { "disk", "1" }, snap, settings)!);
+        Assert.Contains("1MiB/s", VariableEvaluator.Evaluate("top", new[] { "disk_read", "1" }, snap, settings)!);
+        Assert.Contains("512KiB/s", VariableEvaluator.Evaluate("top", new[] { "disk_write", "1" }, snap, settings)!);
+        Assert.Equal("  65.5", VariableEvaluator.Evaluate("top", new[] { "gpu", "1" }, snap, settings));
+        Assert.Equal("    42", VariableEvaluator.Evaluate("top", new[] { "net", "1" }, snap, settings));
+    }
+
+    [Fact]
+    public void Top_SortByPid_UsesTopActiveList()
+    {
+        var snap = new SystemSnapshot
+        {
+            TopActive = new[] { new ProcessInfo("b", 2, 1, 1), new ProcessInfo("a", 1, 99, 99) },
+            TopCpu = new[] { new ProcessInfo("a", 1, 99, 99), new ProcessInfo("b", 2, 1, 1) },
+        };
+        var settings = TestHelpers.Settings();
+        // TopActive 有内容时优先使用（此处 pid 排序榜：b,a）
+        Assert.Equal("b".PadRight(16), VariableEvaluator.Evaluate("top", new[] { "name", "1" }, snap, settings));
+        Assert.Equal("a".PadRight(16), VariableEvaluator.Evaluate("top", new[] { "name", "2" }, snap, settings));
+    }
+
+    [Fact]
+    public void TopConfig_Flattened_FromDeskmeterTable()
+    {
+        var engine = new DeskMeter.Core.Config.LuaConfigEngine();
+        var cfg = engine.Parse("conky.config = {}\ndeskmeter = { monitor = 0, top = { sort = 'mem', columns = { 'name','pid','gpu' } } }\nconky.text = [[]]");
+        Assert.Equal("mem", cfg.Settings.GetString("top.sort"));
+        Assert.Equal(new[] { "name", "pid", "gpu" }, cfg.Settings.GetStringList("top.columns"));
+    }
 }

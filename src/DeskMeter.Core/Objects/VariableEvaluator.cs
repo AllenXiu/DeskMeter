@@ -102,17 +102,17 @@ public static class VariableEvaluator
             case "top":
             case "top_mem":
             {
-                // Conky：top 用 CPU 榜，top_mem 用内存榜；字段 name/pid/cpu/mem
-                // 对齐格式与 Conky 一致：name 左对齐 top_name_width+1（默认 16）、pid %7i、cpu/mem %6.2f
-                var list = key == "top_mem" ? data.TopMem : data.TopCpu;
+                // DeskMeter 扩展：top 用当前排序榜（deskmeter.top.sort / 点击表头切换），
+                // top_mem 保持内存榜（Conky 兼容）；字段 name/pid/cpu/mem/time/disk/disk_read/disk_write/gpu/net
+                var list = key == "top_mem" ? data.TopMem : (data.TopActive.Count > 0 ? data.TopActive : data.TopCpu);
                 var what = Arg(0).ToLowerInvariant();
                 var n = ParseInt(Arg(1), 1) - 1;
                 if (n < 0 || n >= list.Count) return null;
                 var info = list[n];
                 var inv = System.Globalization.CultureInfo.InvariantCulture;
-                // name 列：Conky 语义 = top_name_width + 1（默认 16），截断+补齐，防止长进程名顶破列对齐
                 var nameWidth = (int)settings.GetNumber("top_name_width", 15) + 1;
                 var procName = info.Name.Length > nameWidth ? info.Name[..nameWidth] : info.Name;
+                string IoHuman(double bytes) => Spacer(HumanBytes.Format(bytes), settings, 12) + "/s";
                 return what switch
                 {
                     "name" => procName.PadRight(nameWidth),
@@ -120,6 +120,12 @@ public static class VariableEvaluator
                     "cpu" => info.CpuPercent.ToString("0.00", inv).PadLeft(6),
                     "mem" => info.MemPercent.ToString("0.00", inv).PadLeft(6),
                     "time" => info.CpuSeconds.ToString("0", inv),
+                    "disk" => IoHuman(info.DiskReadBytesPerSec + info.DiskWriteBytesPerSec),
+                    "disk_read" => IoHuman(info.DiskReadBytesPerSec),
+                    "disk_write" => IoHuman(info.DiskWriteBytesPerSec),
+                    "gpu" => info.GpuPercent.ToString("0.0", inv).PadLeft(6),
+                    "net" => info.NetConnections.ToString(inv).PadLeft(6),
+                    "conns" => info.NetConnections.ToString(inv).PadLeft(6),
                     _ => null,
                 };
             }

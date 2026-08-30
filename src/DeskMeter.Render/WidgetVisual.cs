@@ -27,6 +27,9 @@ public sealed class WidgetVisual : FrameworkElement
     /// <summary>最近一次重绘的测量尺寸（窗口自适应用）。</summary>
     public Size MeasuredSize => _measured;
 
+    /// <summary>Top 表头行区域（点击切换排序用；无表头为 null）。</summary>
+    public Rect? TopHeaderBounds { get; private set; }
+
     /// <summary>配置重载时重置稳定宽度基线。</summary>
     public void ResetStableWidth() => _stableWidth = 0;
 
@@ -123,6 +126,7 @@ public sealed class WidgetVisual : FrameworkElement
         var widgetHeight = Math.Max(totalHeight, _options.MinimumHeight);
 
         // 异常安全：绘制失败时 Abort 丢弃部分内容，保留上一次完整渲染与尺寸
+        TopHeaderBounds = null;
         var dc = _visual.RenderOpen();
         try
         {
@@ -148,6 +152,8 @@ public sealed class WidgetVisual : FrameworkElement
                         {
                             case WidgetText text:
                             {
+                                if (text.IsTopHeader)
+                                    TopHeaderBounds = new Rect(_options.Padding, y + yShift, Math.Max(widgetWidth, 0), lineHeight);
                                 var ft = GetFormattedText(text.Text, text.Brush, text.Font, dpi);
                                 dc.DrawText(ft, new Point(x, y + yShift));
                                 // 关键：WPF FormattedText.Width 不含尾部空格，

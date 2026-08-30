@@ -26,6 +26,7 @@ public sealed class WidgetWindow : Window
 
     private ConfigSettings _settings;
     private int _updateCount; // if_updatenr：刷新序号
+    private string _topSort = "cpu"; // Top 榜排序键（deskmeter.top.sort / 点击表头切换）
     private MoonSharp.Interpreter.Script? _luaScript; // ${lua 函数} 变量：配置编译脚本
     private List<ObjectNode> _nodes = new();
     private WidgetVisual _visual = null!;
@@ -64,8 +65,20 @@ public sealed class WidgetWindow : Window
 
         SourceInitialized += (_, _) => ApplyDesktopWindowStyles();
 
-        // 鼠标事件（FR-LATER）：deskmeter.click_through = false 时小部件可点击，单击打开设置
-        MouseLeftButtonUp += (_, _) => SettingsLauncher.Open(_configPath);
+        // 鼠标事件（FR-LATER）：deskmeter.click_through = false 时小部件可点击——
+        // 点击 Top 表头区域切换排序（任务管理器式）；其余区域单击打开设置
+        MouseLeftButtonUp += (_, e) =>
+        {
+            var pos = e.GetPosition(this);
+            if (_visual.TopHeaderBounds is { } hb &&
+                pos.X >= hb.X && pos.X <= hb.X + hb.Width &&
+                pos.Y >= hb.Y && pos.Y <= hb.Y + hb.Height)
+            {
+                CycleTopSort();
+                return;
+            }
+            SettingsLauncher.Open(_configPath);
+        };
         Refresh();
     }
 
@@ -148,15 +161,26 @@ public sealed class WidgetWindow : Window
         var config = _engine.LoadFile(_configPath);
         _settings = config.Settings;
         _luaScript = config.LuaScript;
+        _topSort = config.Settings.GetString("top.sort") ?? "cpu";
         _nodes = ConkyTextParser.Parse(config.Text, _registry, config.Settings);
         // 新配置：重置稳定宽度基线（防旧的宽内容残留）
         _visual?.ResetStableWidth();
+    }
+
+    /// <summary>点击表头循环切换 Top 排序（cpu→mem→disk→gpu→net→pid→name）。</summary>
+    private void CycleTopSort()
+    {
+        var order = new[] { "cpu", "mem", "disk", "gpu", "net", "pid", "name" };
+        var idx = Array.IndexOf(order, _topSort);
+        _topSort = order[(idx + 1) % order.Length];
+        Refresh();
     }
 
     private void Refresh()
     {
         try
         {
+            _collector.TopSort = _topSort;
             var data = _collector.Collect();
             var layout = new WidgetLayout();
             var ctx = new RenderContext(data, _settings, layout) { UpdateNumber = ++_updateCount, LuaScript = _luaScript };

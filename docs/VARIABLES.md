@@ -165,6 +165,9 @@ DeskMeter 兼容 Conky 的 `conky.text` 语法：`$name` 与 `${name args}` 两�
 | `$battery_time` / `$battery_short` | 剩余时间（H:mm:ss / H:mm） | ✅ |
 | `$battery_status` | charging / full / discharging（GetSystemPowerStatus） | ✅ |
 | `${battery_bar 高,宽}` | 电池电量进度条 | ✅ |
+| `deskmeter.top = { sort, columns }` | Top 表排序键（cpu/mem/pid/name/disk/gpu/net）与显示列（任务管理器式，非 Conky 行为） | ✅ |
+| `${top_header}` | 按 top.columns 输出表头行（点击切换排序用） | ✅ |
+| `${top disk/disk_read/disk_write/gpu/net N}` | Top 行扩展列：磁盘 IO 速率 / GPU% / 网络连接数 | ✅ |
 
 ## 通用行为
 
