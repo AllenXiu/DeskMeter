@@ -141,6 +141,25 @@ DeskMeter 兼容 Conky 的 `conky.text` 语法：`$name` 与 `${name args}` 两�
 | Linux 专属占位 | 32 |
 | **合计（已注册变量名）** | **96** |
 
+
+## 13. Conky 扩展（Windows 替代，已实现）
+
+| 变量 | 说明 | 状态 |
+|---|---|---|
+| `${if_existing 路径}...${else}...${endif}` | 文件/目录存在则输出 then 分支 | ✅ |
+| `${if_mounted 盘符}...${endif}` | 磁盘就绪（`/`→系统盘，`C:`→C 盘） | ✅ |
+| `${if_match 表达式}...${endif}` | 比较表达式（== != > < >= <=，数值/字符串） | ✅ |
+| `${if_running 进程名}...${endif}` | 进程是否在运行（不含 .exe） | ✅ |
+| `${if_up [网卡]}...${endif}` | 指定/任意非回环网卡是否 Up | ✅ |
+| `${if_empty 文本}...${endif}` | 参数展开后是否为空 | ✅ |
+| `${if_updatenr N}...${endif}` | 当前刷新序号 == N | ✅ |
+| `${if_gw IP}...${endif}` | 默认网关 == IP | ✅ |
+| `${else}` / `${endif}` | 条件块分支与结束（支持嵌套） | ✅ |
+| `$addr` / `$addrs` | 本机 IPv4 地址 / 全部地址 | ✅ |
+| `$gw_ip` / `$gw_iface` / `$iface` | 默认网关 IP / 网卡名 | ✅ |
+| `$nameserver` | DNS 服务器 | ✅ |
+| `$loadavg` | 1/5/15 分钟 CPU 占用均值（Windows 用 CPU 历史近似） | ✅ |
+
 ## 通用行为
 
 - **use_spacer**（`left` / `right` / `none`）：人类可读字节补到 7 字符、百分比补到 3 字符，防止刷新抖动
