@@ -141,7 +141,10 @@ public sealed class SystemSnapshot
     {
         if (string.IsNullOrWhiteSpace(path)) return "/";
         var p = path.Trim();
-        if (p is "/" or "\\") return Path.GetPathRoot(Environment.SystemDirectory) ?? "/";
+        if (p is "/" or "\\")
+            return OperatingSystem.IsWindows()
+                ? Path.GetPathRoot(Environment.SystemDirectory) ?? "/"
+                : "/";
         if (p.Length == 2 && p[1] == ':') return p.ToUpperInvariant() + "\\";
         if (p.Length == 3 && p[1] == ':' && (p[2] == '\\' || p[2] == '/')) return p[..2].ToUpperInvariant() + "\\";
         return p;

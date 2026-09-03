@@ -59,7 +59,8 @@ public class P1ExecTests
     [Fact]
     public void Render_Exec_FirstPrintShowsPlaceholder()
     {
-        var nodes = ConkyTextParser.Parse("${exec ping -n 1 127.0.0.1 >nul}", _registry, _settings);
+        var cmd = OperatingSystem.IsWindows() ? "ping -n 2 127.0.0.1 >nul" : "sleep 3";
+        var nodes = ConkyTextParser.Parse("${exec " + cmd + "}", _registry, _settings);
         var layout = Render(nodes);
         Assert.Equal("--", layout.ToConsoleText().Trim());
     }

@@ -346,7 +346,8 @@ public sealed class WidgetLayout
                     }
                 }
             }
-            sb.AppendLine();
+            if (OperatingSystem.IsWindows()) sb.AppendLine(); // Windows 保持 CRLF（与历史一致）
+            else sb.Append('\n'); // macOS/Linux 用 LF（Conky 语义）
         }
         return sb.ToString();
     }

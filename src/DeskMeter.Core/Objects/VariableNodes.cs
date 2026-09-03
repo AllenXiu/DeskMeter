@@ -219,12 +219,21 @@ public sealed class ExecNode : ObjectNode
             using var cts = new CancellationTokenSource(Timeout);
             var psi = new ProcessStartInfo
             {
-                FileName = "cmd.exe",
-                Arguments = "/c " + _command,
                 RedirectStandardOutput = true,
                 UseShellExecute = false,
                 CreateNoWindow = true,
             };
+            if (OperatingSystem.IsWindows())
+            {
+                psi.FileName = "cmd.exe";
+                psi.Arguments = "/c " + _command;
+            }
+            else
+            {
+                psi.FileName = "/bin/sh";
+                psi.ArgumentList.Add("-c");
+                psi.ArgumentList.Add(_command);
+            }
             process = Process.Start(psi);
             if (process is null) return;
 
@@ -793,12 +802,21 @@ internal sealed class ExecOutputCache
             using var cts = new CancellationTokenSource(Timeout);
             var psi = new System.Diagnostics.ProcessStartInfo
             {
-                FileName = "cmd.exe",
-                Arguments = "/c " + _command,
                 RedirectStandardOutput = true,
                 UseShellExecute = false,
                 CreateNoWindow = true,
             };
+            if (OperatingSystem.IsWindows())
+            {
+                psi.FileName = "cmd.exe";
+                psi.Arguments = "/c " + _command;
+            }
+            else
+            {
+                psi.FileName = "/bin/sh";
+                psi.ArgumentList.Add("-c");
+                psi.ArgumentList.Add(_command);
+            }
             process = System.Diagnostics.Process.Start(psi);
             if (process is null) return;
             var stdout = await process.StandardOutput.ReadToEndAsync(cts.Token);

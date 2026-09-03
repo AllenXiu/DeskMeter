@@ -52,7 +52,9 @@ public class P2WindowsCompatTests
     [Fact]
     public void IfMounted_SystemDrive_True()
     {
-        var root = System.IO.Path.GetPathRoot(Environment.SystemDirectory)!;
+        var root = OperatingSystem.IsWindows()
+            ? System.IO.Path.GetPathRoot(Environment.SystemDirectory)!
+            : "/";
         Assert.Equal("Y", Render("${if_mounted " + root + "}Y${else}N${endif}"));
     }
 
@@ -193,8 +195,9 @@ public class P2WindowsCompatTests
         try
         {
             Assert.Equal("5", Render("${lines " + file + "}"));
-            Assert.Equal("a\r\nb\r\nc", Render("${head 3 " + file + "}"));
-            Assert.Equal("d\r\ne", Render("${tail 2 " + file + "}"));
+            var nl = Environment.NewLine;
+            Assert.Equal("a" + nl + "b" + nl + "c", Render("${head 3 " + file + "}"));
+            Assert.Equal("d" + nl + "e", Render("${tail 2 " + file + "}"));
         }
         finally { System.IO.File.Delete(file); }
     }

@@ -25,6 +25,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\DeskMeter.Core\DeskMeter.Core.csproj" />
+    <ProjectReference Include="..\DeskMeter.Core.Windows\DeskMeter.Core.Windows.csproj" />
     <ProjectReference Include="..\DeskMeter.Render\DeskMeter.Render.csproj" />
   </ItemGroup>
   <ItemGroup>

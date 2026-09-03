@@ -49,7 +49,9 @@ public class FormattingTests
     [Fact]
     public void NormalizeDiskPath_Root()
     {
-        var root = System.IO.Path.GetPathRoot(Environment.SystemDirectory);
+        var root = OperatingSystem.IsWindows()
+            ? System.IO.Path.GetPathRoot(Environment.SystemDirectory) ?? "/"
+            : "/";
         Assert.Equal(root, Core.Data.SystemSnapshot.NormalizeDiskPath("/"));
         Assert.Equal("C:\\", Core.Data.SystemSnapshot.NormalizeDiskPath("C:"));
         Assert.Equal("C:\\", Core.Data.SystemSnapshot.NormalizeDiskPath("c:/"));
