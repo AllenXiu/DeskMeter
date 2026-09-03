@@ -16,6 +16,32 @@ public static class VariableEvaluator
     private const int HumanWidth = 7;
     private const int PercentWidth = 3;
 
+    /// <summary>按“显示列宽”截断/补齐进程名：CJK 全角按 2 列计，保证中文进程名不挤宽后续列。</summary>
+    private static string FitNameCells(string name, int cells)
+    {
+        var sb = new System.Text.StringBuilder(Math.Min(name.Length + 8, cells + 8));
+        var used = 0;
+        foreach (var ch in name)
+        {
+            var w = CellWidth(ch);
+            if (used + w > cells) break;
+            sb.Append(ch);
+            used += w;
+        }
+        while (used < cells) { sb.Append(' '); used++; }
+        return sb.ToString();
+    }
+
+    /// <summary>East Asian Width：常用 CJK/全角区按 2 列，其余 1 列。</summary>
+    private static int CellWidth(char c)
+    {
+        if (c >= 0x2E80 && c <= 0x9FFF) return 2; // CJK 部首/统一表意
+        if (c >= 0xF900 && c <= 0xFAFF) return 2; // 兼容表意
+        if (c >= 0xFF00 && c <= 0xFF60) return 2; // 全角形式
+        if (c >= 0xAC00 && c <= 0xD7A3) return 2; // 谚文音节
+        return 1;
+    }
+
     public static string? Evaluate(string name, string[] args, SystemSnapshot data, ConfigSettings settings)
     {
         var key = name.ToLowerInvariant();
@@ -111,11 +137,10 @@ public static class VariableEvaluator
                 var info = list[n];
                 var inv = System.Globalization.CultureInfo.InvariantCulture;
                 var nameWidth = (int)settings.GetNumber("top_name_width", 15) + 1;
-                var procName = info.Name.Length > nameWidth ? info.Name[..nameWidth] : info.Name;
                 string IoHuman(double bytes) => Spacer(HumanBytes.Format(bytes), settings, 12) + "/s";
                 return what switch
                 {
-                    "name" => procName.PadRight(nameWidth),
+                    "name" => FitNameCells(info.Name, nameWidth),
                     "pid" => info.Pid.ToString(inv).PadLeft(7),
                     "cpu" => info.CpuPercent.ToString("0.00", inv).PadLeft(6),
                     "mem" => info.MemPercent.ToString("0.00", inv).PadLeft(6),

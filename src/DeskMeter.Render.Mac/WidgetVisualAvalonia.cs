@@ -25,6 +25,8 @@ public sealed class WidgetVisualAvalonia : Control
     // 含 CJK 的行整行使用苹方：中英混排共用一套字体度量，避免数字与中文基线错位；纯 ASCII 行仍用等宽 Menlo
     private const string CjkFontFamily = "PingFang SC";
     private string _lineFontFamily = "";
+    private bool _tabularLine;
+    private bool _layoutLogged;
 
     private static bool ContainsCjk(string s)
     {
@@ -35,10 +37,31 @@ public sealed class WidgetVisualAvalonia : Control
 
     private string LineFontFamily(WidgetLine line)
     {
+        // 进程表行（表头/≥3 个数字列）强制等宽 Menlo：即使进程名含 CJK 也不能切苹方，
+        // 否则非等宽字体会让该行列与表头/其它行错位（如“快帆”这类中文进程名）
+        if (IsTabularRow(line)) return _options.FontFamily;
         foreach (var e in line.Elements)
             if (e is WidgetText t && ContainsCjk(t.Text))
                 return CjkFontFamily;
         return _options.FontFamily;
+    }
+
+    /// <summary>判定是否为进程表行：表头标记，或含 ≥2 个“左补齐空格”的数字列 run。
+    /// 关键在“左侧有空格”（PadLeft 产生的列间距），而非纯数字——CPU%/MEM% 形如 0.00/-- 也要算。</summary>
+    private static bool IsTabularRow(WidgetLine line)
+    {
+        var paddedCols = 0;
+        var isHeader = false;
+        foreach (var e in line.Elements)
+        {
+            if (e is not WidgetText t) continue;
+            if (t.IsTopHeader) isHeader = true;
+            var s = t.Text.Trim();
+            if (s.Length > 0 && t.Text.Length > s.Length && t.Text.StartsWith(" ", StringComparison.Ordinal) &&
+                s.All(c => char.IsAsciiDigit(c) || c == '.' || c == '-'))
+                paddedCols++;
+        }
+        return isHeader || paddedCols >= 2;
     }
 
     /// <summary>最近一次重绘的测量尺寸（窗口自适应用）。</summary>
@@ -89,6 +112,7 @@ public sealed class WidgetVisualAvalonia : Control
             var line = lines[i];
             double w = 0, h = fontHeight;
             _lineFontFamily = LineFontFamily(line);
+            _tabularLine = !line.IsRule && IsTabularRow(line);
             if (!line.IsRule)
             {
                 foreach (var element in line.Elements)
@@ -98,7 +122,7 @@ public sealed class WidgetVisualAvalonia : Control
                         case WidgetText text:
                         {
                             var (tf, sz) = ResolveFont(text.Font);
-                            w += Measure(text.Text, text.Brush, tf, sz);
+                            w += TextAdvance(text.Text, text.Brush, text.Font, tf, sz);
                             var th = TextHeight(text.Text, text.Brush, text.Font, tf, sz);
                             if (th > h) h = th;
                             if (sz > 0 && sz + 2 > h) h = sz + 2;
@@ -157,6 +181,7 @@ public sealed class WidgetVisualAvalonia : Control
             {
                 var line = _layout.Lines[i];
                 _lineFontFamily = LineFontFamily(line);
+                _tabularLine = !line.IsRule && IsTabularRow(line);
                 var lineHeight = MeasureLineHeight(line, typeface);
                 if (line.IsRule)
                 {
@@ -179,7 +204,9 @@ public sealed class WidgetVisualAvalonia : Control
                                     TopHeaderBounds = new Rect(_options.Padding, y + yShift, Math.Max(_widgetWidth, 0), lineHeight);
                                 var ft = GetFormattedText(text.Text, text.Brush, text.Font);
                                 dc.DrawText(ft, new Point(x, y + yShift));
-                                x += RunWidth(text.Text, text.Brush, text.Font);
+                                if (!_layoutLogged && Environment.GetEnvironmentVariable("DESKMETER_DEBUG_LAYOUT") == "1")
+                                    Console.WriteLine($"[layout] tabular={_tabularLine} fam={_lineFontFamily} x={x:0.##} cells={TextCells(text.Text)} \"{text.Text.Replace(" ", "·")}\"");
+                                x += TextAdvance(text.Text, text.Brush, text.Font);
                                 break;
                             }
                             case WidgetBar bar:
@@ -229,6 +256,7 @@ public sealed class WidgetVisualAvalonia : Control
                 }
                 y += lineHeight + _options.LineGap;
             }
+            if (Environment.GetEnvironmentVariable("DESKMETER_DEBUG_LAYOUT") == "1") _layoutLogged = true;
         }
         catch (Exception ex)
         {
@@ -358,6 +386,31 @@ public sealed class WidgetVisualAvalonia : Control
         var trailing = 0;
         for (var i = text.Length - 1; i >= 0 && text[i] == ' '; i--) trailing++;
         return trailing == 0 ? ft.Width : ft.Width + trailing * SpaceAdvance(family, fs);
+    }
+
+    /// <summary>文本推进宽度：表行按“字符数 × 等宽字距”固定推进（列位不随 CJK 字形宽度漂移）；普通行用含尾部空格的实测宽度。</summary>
+    private double TextAdvance(string text, WidgetBrush color, FontSpec? font,
+        Typeface? typeface = null, double? size = null)
+    {
+        if (_tabularLine)
+            return TextCells(text) * SpaceAdvance(_options.FontFamily, _options.FontSize);
+        return RunWidth(text, color, font, typeface, size);
+    }
+
+    /// <summary>表行按“显示列”推进：空格 1 列、CJK/全角 2 列（与 Core FitNameCells 同口径）。</summary>
+    private static int TextCells(string text)
+    {
+        var cells = 0;
+        foreach (var c in text)
+        {
+            if (c == ' ') { cells++; continue; }
+            if (c >= 0x2E80 && c <= 0x9FFF) { cells += 2; continue; }
+            if (c >= 0xF900 && c <= 0xFAFF) { cells += 2; continue; }
+            if (c >= 0xFF00 && c <= 0xFF60) { cells += 2; continue; }
+            if (c >= 0xAC00 && c <= 0xD7A3) { cells += 2; continue; }
+            cells++;
+        }
+        return Math.Max(cells, 1);
     }
 
     /// <summary>文本行高：用 FormattedText.Height（含 CJK 回退字形度量，避免跨行重叠）。</summary>
