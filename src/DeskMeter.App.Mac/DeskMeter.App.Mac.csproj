@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>DeskMeter.App.Mac</RootNamespace>
+    <AssemblyName>DeskMeterMac</AssemblyName>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="11.3.20" />
+    <PackageReference Include="Avalonia.Desktop" Version="11.3.20" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.20" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\DeskMeter.Core\DeskMeter.Core.csproj" />
+    <ProjectReference Include="..\DeskMeter.Core.Mac\DeskMeter.Core.Mac.csproj" />
+    <ProjectReference Include="..\DeskMeter.Render.Mac\DeskMeter.Render.Mac.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\samples\conky.conf" Link="samples\conky.conf" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\samples\conky.mac.conf" Link="samples\conky.mac.conf" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

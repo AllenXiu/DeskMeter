@@ -16,6 +16,8 @@ obj/
 build/
 dist/
 out/
+publish/
+/DeskMeter-*.zip
 
 # Test results
 TestResults/

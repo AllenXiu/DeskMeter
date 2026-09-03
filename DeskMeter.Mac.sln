@@ -1,0 +1,64 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{6536AFBC-FDE2-4BC5-95E8-7A393D7CCCD8}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DeskMeter.Tests", "tests\DeskMeter.Tests\DeskMeter.Tests.csproj", "{98A0E8D0-DA92-4E19-90E6-2E6C8F8DD258}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{81123464-845A-4D6F-8515-DA7A2B2E80A9}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DeskMeter.Core", "src\DeskMeter.Core\DeskMeter.Core.csproj", "{1AF2AF2E-A9E2-4925-A7B2-A5F070E5FA9E}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DeskMeter.Core.Mac", "src\DeskMeter.Core.Mac\DeskMeter.Core.Mac.csproj", "{BA4A8747-C70F-4703-8FC0-B310E9DA3464}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DeskMeter.SmokeMac", "src\DeskMeter.SmokeMac\DeskMeter.SmokeMac.csproj", "{6866D93B-BF98-4CB1-88ED-E49FA2A52853}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DeskMeter.App.Mac", "src\DeskMeter.App.Mac\DeskMeter.App.Mac.csproj", "{214AA0D4-F7A2-43BF-8D64-DA8C9B5733E4}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DeskMeter.Render.Mac", "src\DeskMeter.Render.Mac\DeskMeter.Render.Mac.csproj", "{B8F1BBCD-E9F2-4D12-9FDA-CBFC64D0E79A}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{98A0E8D0-DA92-4E19-90E6-2E6C8F8DD258}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{98A0E8D0-DA92-4E19-90E6-2E6C8F8DD258}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{98A0E8D0-DA92-4E19-90E6-2E6C8F8DD258}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{98A0E8D0-DA92-4E19-90E6-2E6C8F8DD258}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1AF2AF2E-A9E2-4925-A7B2-A5F070E5FA9E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1AF2AF2E-A9E2-4925-A7B2-A5F070E5FA9E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1AF2AF2E-A9E2-4925-A7B2-A5F070E5FA9E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1AF2AF2E-A9E2-4925-A7B2-A5F070E5FA9E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{BA4A8747-C70F-4703-8FC0-B310E9DA3464}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BA4A8747-C70F-4703-8FC0-B310E9DA3464}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BA4A8747-C70F-4703-8FC0-B310E9DA3464}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BA4A8747-C70F-4703-8FC0-B310E9DA3464}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6866D93B-BF98-4CB1-88ED-E49FA2A52853}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6866D93B-BF98-4CB1-88ED-E49FA2A52853}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6866D93B-BF98-4CB1-88ED-E49FA2A52853}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6866D93B-BF98-4CB1-88ED-E49FA2A52853}.Release|Any CPU.Build.0 = Release|Any CPU
+		{214AA0D4-F7A2-43BF-8D64-DA8C9B5733E4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{214AA0D4-F7A2-43BF-8D64-DA8C9B5733E4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{214AA0D4-F7A2-43BF-8D64-DA8C9B5733E4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{214AA0D4-F7A2-43BF-8D64-DA8C9B5733E4}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B8F1BBCD-E9F2-4D12-9FDA-CBFC64D0E79A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B8F1BBCD-E9F2-4D12-9FDA-CBFC64D0E79A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B8F1BBCD-E9F2-4D12-9FDA-CBFC64D0E79A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B8F1BBCD-E9F2-4D12-9FDA-CBFC64D0E79A}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{98A0E8D0-DA92-4E19-90E6-2E6C8F8DD258} = {6536AFBC-FDE2-4BC5-95E8-7A393D7CCCD8}
+		{1AF2AF2E-A9E2-4925-A7B2-A5F070E5FA9E} = {81123464-845A-4D6F-8515-DA7A2B2E80A9}
+		{BA4A8747-C70F-4703-8FC0-B310E9DA3464} = {81123464-845A-4D6F-8515-DA7A2B2E80A9}
+		{6866D93B-BF98-4CB1-88ED-E49FA2A52853} = {81123464-845A-4D6F-8515-DA7A2B2E80A9}
+		{214AA0D4-F7A2-43BF-8D64-DA8C9B5733E4} = {81123464-845A-4D6F-8515-DA7A2B2E80A9}
+		{B8F1BBCD-E9F2-4D12-9FDA-CBFC64D0E79A} = {81123464-845A-4D6F-8515-DA7A2B2E80A9}
+	EndGlobalSection
+EndGlobal

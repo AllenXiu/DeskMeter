@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\DeskMeter.Core\DeskMeter.Core.csproj" />
+    <ProjectReference Include="..\DeskMeter.Core.Mac\DeskMeter.Core.Mac.csproj" />
+  </ItemGroup>
+</Project>
